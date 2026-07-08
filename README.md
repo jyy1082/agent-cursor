@@ -104,7 +104,9 @@ const cursor = new AgentCursor({
 | `scroll(target, options?)` | Scroll the window or a container (`{ amount }` or `{ to: 'top'\|'bottom' }`) |
 | `moveTo(target)` | Move the cursor without acting |
 | `step(target, action, label?)` | Run custom logic while still getting the cursor animation |
-| `run(steps)` | Run an ordered array of steps of any of the above types |
+| `run(steps)` | Run an ordered array of steps of any of the above types, then automatically hide the cursor dot |
+| `hideCursor()` | Hide the cursor dot (e.g. once a sequence of individual calls is done) |
+| `showCursor()` | Show the cursor dot again (also happens automatically on the next move/click/type/etc.) |
 | `clearHighlight(target)` | Remove one element's highlight box |
 | `clearHighlights()` | Remove every active highlight box |
 | `destroy()` | Remove the cursor, all highlights, and event listeners |

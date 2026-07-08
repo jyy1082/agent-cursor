@@ -124,7 +124,9 @@
     const status = document.getElementById('status');
     const say = (t) => { status.textContent = t; };
 
-    const cursor = new AgentCursor({ showCursorDot: false });
+    const cursor = new AgentCursor({
+      onBeforeStep: (step) => { if (step.label) say(step.label); },
+    });
 
     const planTrigger = document.getElementById('plan-trigger');
     const planMenu = document.getElementById('plan-menu');
@@ -143,23 +145,15 @@
       document.getElementById('run-btn').disabled = true;
       cursor.clearHighlights();
 
-      say('Typing full name');
-      await cursor.type('#f-name', 'Jane Cooper');
-
-      say('Selecting country from dropdown');
-      await cursor.select('#f-country', 'us');
-
-      say('Opening the plan menu and choosing pro');
-      await cursor.chooseOption('#plan-trigger', '.menu-opt[data-value="pro"]');
-
-      say('Checking the subscribe box');
-      await cursor.check('#f-agree', true);
-
-      say('Scrolling activity list to the bottom');
-      await cursor.scroll('#scroll-box', { to: 'bottom' });
-
-      say('Clicking submit');
-      await cursor.click('#f-submit');
+      await cursor.run([
+        { type: 'type', target: '#f-name', text: 'Jane Cooper', label: 'Typing full name' },
+        { type: 'select', target: '#f-country', value: 'us', label: 'Selecting country' },
+        { type: 'chooseOption', target: '#plan-trigger', option: '.menu-opt[data-value="pro"]', label: 'Choosing the pro plan' },
+        { type: 'check', target: '#f-agree', checked: true, label: 'Checking the subscribe box' },
+        { type: 'scroll', target: '#scroll-box', options: { to: 'bottom' }, label: 'Scrolling activity list' },
+        { type: 'click', target: '#f-submit', label: 'Clicking submit' },
+      ]);
+      // run() hides the cursor dot automatically once every step above finishes.
 
       say('Demo complete. Every touched field stays highlighted until reset.');
       document.getElementById('run-btn').disabled = false;

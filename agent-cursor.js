@@ -32,7 +32,10 @@
  * Set highlightEnabled: false to turn highlighting off entirely.
  *
  * Set showCursorDot: false to skip the moving cursor dot entirely and keep
- * only the ripple/highlight feedback on each target.
+ * only the ripple/highlight feedback on each target. Otherwise, run() hides
+ * the dot automatically once the whole sequence finishes — call
+ * hideCursor()/showCursor() yourself if you're calling individual methods
+ * instead of run().
  *
  * Usage:
  *   import { AgentCursor } from './agent-cursor.js'
@@ -525,7 +528,9 @@ export class AgentCursor {
     });
   }
 
-  /** Run an ordered list of steps — see method docs above for each type's shape. */
+  /** Run an ordered list of steps — see method docs above for each type's shape.
+   * Automatically hides the cursor dot once every step finishes (call
+   * showCursor() before the next run if you don't want that). */
   async run(steps) {
     for (const s of steps) {
       if (s.type === 'click') await this.click(s.target, s.label);
@@ -537,6 +542,17 @@ export class AgentCursor {
       else if (s.type === 'chooseOption') await this.chooseOption(s.target, s.option, s.options || {});
       else if (s.type === 'custom') await this.step(s.target, s.action, s.label);
     }
+    this.hideCursor();
+  }
+
+  /** Hide the cursor dot (e.g. once a whole sequence of actions is done). */
+  hideCursor() {
+    if (this.cursorEl) this.cursorEl.style.display = 'none';
+  }
+
+  /** Show the cursor dot again (it also reappears automatically on the next move/click/type/etc.). */
+  showCursor() {
+    if (this.cursorEl) this.cursorEl.style.display = 'block';
   }
 
   /** Remove the cursor element, all highlight boxes, and event listeners. */
