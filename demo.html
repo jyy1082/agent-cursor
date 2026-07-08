@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>agent-cursor demo</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #111111;
+    --text-muted: #6b7280;
+    --border: #e5e7eb;
+    --border-strong: #d1d5db;
+    --accent: #378ADD;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 640px;
+    margin: 3rem auto;
+    padding: 0 1.5rem;
+    color: var(--text);
+    background: var(--bg);
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 0.25rem; }
+  p.sub { color: var(--text-muted); font-size: 14px; margin-top: 0; margin-bottom: 2rem; }
+  label { font-size: 13px; color: var(--text-muted); display: block; margin-bottom: 4px; }
+  input[type="text"], select {
+    width: 100%; height: 36px; padding: 0 10px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    font-size: 14px; background: #fff; color: var(--text);
+  }
+  button {
+    height: 36px; padding: 0 14px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    background: #fff; font-size: 14px; cursor: pointer;
+  }
+  button:hover { background: #f9fafb; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .field { margin-bottom: 12px; position: relative; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 12px; }
+  .checkbox-row input { width: 16px; height: 16px; }
+  .menu {
+    display: none; position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
+    background: #fff; border: 1px solid var(--border-strong); border-radius: var(--radius);
+    z-index: 10; overflow: hidden;
+  }
+  .menu-opt { padding: 8px 12px; font-size: 14px; cursor: pointer; }
+  .menu-opt:hover { background: #f3f4f6; }
+  #scroll-box {
+    height: 110px; overflow-y: auto; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 8px 12px; margin-bottom: 12px;
+  }
+  #scroll-box p { font-size: 13px; margin: 6px 0; }
+  #status { font-size: 13px; color: var(--text-muted); min-height: 18px; }
+  .actions { display: flex; gap: 8px; margin-bottom: 1.5rem; }
+</style>
+</head>
+<body>
+  <h1>agent-cursor demo</h1>
+  <p class="sub">Click "Run full demo" to watch the library drive every control type: typing, a native select, a custom dropdown, a checkbox, scrolling, and a final click.</p>
+
+  <div class="actions">
+    <button id="run-btn">Run full demo</button>
+    <button id="reset-btn">Reset</button>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label for="f-name">Full name</label>
+      <input id="f-name" type="text" placeholder="Jane Cooper" />
+    </div>
+    <div class="field">
+      <label for="f-country">Country</label>
+      <select id="f-country">
+        <option value="">Select a country</option>
+        <option value="us">United states</option>
+        <option value="cn">China</option>
+        <option value="jp">Japan</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Plan</label>
+    <button id="plan-trigger" style="width:100%; text-align:left; display:flex; justify-content:space-between; align-items:center;">
+      <span id="plan-label">Choose a plan</span>
+      <span>&#9662;</span>
+    </button>
+    <div id="plan-menu" class="menu">
+      <div class="menu-opt" data-value="basic">Basic</div>
+      <div class="menu-opt" data-value="pro">Pro</div>
+      <div class="menu-opt" data-value="team">Team</div>
+    </div>
+  </div>
+
+  <label class="checkbox-row">
+    <input id="f-agree" type="checkbox" />
+    Subscribe to product updates
+  </label>
+
+  <label for="scroll-box">Recent activity</label>
+  <div id="scroll-box">
+    <p>Item 1: account created</p>
+    <p>Item 2: profile updated</p>
+    <p>Item 3: password changed</p>
+    <p>Item 4: logged in from new device</p>
+    <p>Item 5: subscription renewed</p>
+    <p>Item 6: invoice paid</p>
+    <p>Item 7: settings synced</p>
+  </div>
+
+  <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+    <button id="f-submit">Submit</button>
+  </div>
+
+  <p id="status">Idle. Highlights persist across steps until you press reset.</p>
+
+  <script type="module">
+    import { AgentCursor } from './agent-cursor.js';
+
+    const status = document.getElementById('status');
+    const say = (t) => { status.textContent = t; };
+
+    const cursor = new AgentCursor();
+
+    const planTrigger = document.getElementById('plan-trigger');
+    const planMenu = document.getElementById('plan-menu');
+    const planLabel = document.getElementById('plan-label');
+    planTrigger.addEventListener('click', () => {
+      planMenu.style.display = planMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    document.querySelectorAll('.menu-opt').forEach((opt) => {
+      opt.addEventListener('click', () => {
+        planLabel.textContent = opt.textContent;
+        planMenu.style.display = 'none';
+      });
+    });
+
+    async function runDemo() {
+      document.getElementById('run-btn').disabled = true;
+      cursor.clearHighlights();
+
+      say('Typing full name');
+      await cursor.type('#f-name', 'Jane Cooper');
+
+      say('Selecting country from dropdown');
+      await cursor.select('#f-country', 'us');
+
+      say('Opening the plan menu and choosing pro');
+      await cursor.chooseOption('#plan-trigger', '.menu-opt[data-value="pro"]');
+
+      say('Checking the subscribe box');
+      await cursor.check('#f-agree', true);
+
+      say('Scrolling activity list to the bottom');
+      await cursor.scroll('#scroll-box', { to: 'bottom' });
+
+      say('Clicking submit');
+      await cursor.click('#f-submit');
+
+      say('Demo complete. Every touched field stays highlighted until reset.');
+      document.getElementById('run-btn').disabled = false;
+    }
+
+    document.getElementById('run-btn').addEventListener('click', runDemo);
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      document.getElementById('f-name').value = '';
+      document.getElementById('f-country').value = '';
+      document.getElementById('f-agree').checked = false;
+      planLabel.textContent = 'Choose a plan';
+      planMenu.style.display = 'none';
+      document.getElementById('scroll-box').scrollTop = 0;
+      cursor.clearHighlights();
+      say('Idle. Highlights persist across steps until you press reset.');
+    });
+  </script>
+</body>
+</html>
