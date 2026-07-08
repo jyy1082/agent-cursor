@@ -14,15 +14,13 @@ a UI framework or animation library.
 
 ## Demo
 
-Open [`demo.html`](./demo.html) directly in a browser (no build step needed —
-it's plain ES modules) and press "Run full demo" to watch the library drive
-a real form: typing, a native `<select>`, a custom dropdown, a checkbox,
-scrolling a container, and a final click, with a highlight border left on
-every field it touched.
+**[Open the live demo](https://jyy1082.github.io/agent-cursor/demo.html)** —
+press "Run full demo" to watch the library drive a real form: typing, a
+native `<select>`, a custom dropdown, a checkbox, scrolling a container, and
+a final click, with a highlight border left on every field it touched.
 
-If you enable GitHub Pages for this repo (Settings → Pages → deploy from
-`main` branch), the demo will be live at
-`https://jyy1082.github.io/agent-cursor/demo.html`.
+You can also open [`demo.html`](./demo.html) directly from a local clone —
+no build step needed, it's plain ES modules.
 
 ## Features
 
