@@ -26,12 +26,13 @@ no build step needed, it's plain ES modules.
 
 - Animated virtual cursor that moves to each target before acting
 - Click ripple and press feedback
-- Typing animation with native-setter input (works through React/Vue
-  controlled inputs)
+- Typing animation that works in native inputs/textareas (via native setter,
+  so it works through React/Vue controlled inputs) and in `contenteditable`
+  elements (rich-text editors, custom div-based inputs)
 - Native `<select>` support, including multi-select
 - Checkbox/radio/switch support (including ARIA-based custom toggles) that only clicks when the state actually needs to change
 - Custom (div/li-based) dropdown menu support via `chooseOption`
-- Page and container scrolling, with a direction indicator and scroll-settle detection
+- Page and container scrolling, with scroll-settle detection and an optional direction indicator
 - Persistent highlight borders on every acted-on element (on by default,
   cleared explicitly or via `highlightDuration`), auto-repositioned on scroll/resize
 - Every operation is queued, so animations and actions never overlap
@@ -99,7 +100,7 @@ const cursor = new AgentCursor({
 | Method | Description |
 |---|---|
 | `click(target, label?)` | Move to and click an element |
-| `type(target, text, label?)` | Move to, focus, and type into an input/textarea |
+| `type(target, text, label?)` | Move to, focus, and type into an input/textarea/contenteditable element |
 | `select(target, value, label?)` | Set a native `<select>`'s value (array = multi-select) |
 | `check(target, checked, label?)` | Set a checkbox, radio, or ARIA switch (`role="switch"`/`aria-checked`) to a specific checked state |
 | `chooseOption(trigger, option, options?)` | Open a custom dropdown and click an option |
@@ -148,6 +149,11 @@ new AgentCursor({
   `<select>`.
 - Drag-and-drop and canvas-based widgets aren't covered directly; use `step()`
   to write custom logic while still getting the cursor animation for free.
+- A "form" built entirely from generic `<div>`s with no semantic markup at
+  all (no `role`/`aria-checked`, no `contenteditable`, no real `<input>`
+  anywhere) has no standard state to read or write — `click()` still works
+  for anything that's just a click, but for anything stateful, use `step()`
+  to read/write whatever custom attribute or class your component uses.
 - This only moves a *visual* cursor — it cannot move the user's real, physical
   mouse pointer (browsers don't expose that capability to page scripts), and
   clicks are dispatched as synthetic (`isTrusted: false`) events.

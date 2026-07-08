@@ -9,7 +9,7 @@
  *
  * Supported controls:
  *   - buttons/links          click(target)
- *   - text inputs/textareas  type(target, text)
+ *   - text inputs/textareas/contenteditable  type(target, text)
  *   - native <select>        select(target, value | valueArray)
  *   - checkbox/radio/switch  check(target, checked)
  *   - custom div/li dropdown chooseOption(trigger, option)
@@ -67,6 +67,20 @@ const DEFAULTS = {
   zIndex: 999999,
   onExecuteClick: (el) => el.click(),
   onExecuteInput: (el, text) => {
+    if (el.isContentEditable) {
+      // contenteditable div (rich-text editors, some custom input components)
+      // has no .value — set textContent directly instead.
+      el.textContent = text;
+      // Place the caret at the end so it behaves like a real typed input.
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
     // Native setter bypasses React/Vue controlled-input interception.
     const proto = el.tagName === 'TEXTAREA'
       ? window.HTMLTextAreaElement.prototype
