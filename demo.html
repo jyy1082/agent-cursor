@@ -60,7 +60,7 @@
 </head>
 <body>
   <h1>agent-cursor demo</h1>
-  <p class="sub">Click "Run full demo" to watch the library drive every control type: typing, a native select, a custom dropdown, a checkbox, scrolling, and a final click.</p>
+  <p class="sub">Click "Run full demo" to watch the library drive every control type: typing, a native select, a custom dropdown, a checkbox, scrolling, and a final click. Watch the edge of the browser window too — it pulses while automation is running.</p>
 
   <div class="actions">
     <button id="run-btn">Run full demo</button>
@@ -125,6 +125,7 @@
     const say = (t) => { status.textContent = t; };
 
     const cursor = new AgentCursor({
+      showPageGlow: true,
       onBeforeStep: (step) => { if (step.label) say(step.label); },
     });
 
