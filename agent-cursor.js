@@ -461,7 +461,11 @@ export class AgentCursor {
         }
         throw err;
       } finally {
-        this._activeCount--;
+        // Clamped at 0: stop() may have already force-reset this counter
+        // while this step was still in flight, so a plain decrement could
+        // drift negative and never hit 0 again — which would permanently
+        // stop the page glow from ever hiding on future runs.
+        this._activeCount = Math.max(0, this._activeCount - 1);
         if (this._activeCount === 0) this._hidePageGlowSoon();
       }
     };
