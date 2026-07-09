@@ -14,6 +14,10 @@
  *   - checkbox/radio/switch  check(target, checked)
  *   - custom div/li dropdown chooseOption(trigger, option)
  *   - page/container scroll  scroll(target, { amount | to })
+ *   - keyboard              pressKey(target, key, { modifiers })
+ *   - hover / unhover        hover(target), unhover()
+ *   - drag and drop          dragTo(source, target)
+ *   - wait for async content waitFor(target, { timeout, interval, visible })
  *   - abort mid-sequence     stop()
  *
  * Known limits:
@@ -23,8 +27,16 @@
  *     security reasons in any browser — out of scope for any DOM-based tool.
  *   - Native <input type="date">/color pickers have browser-drawn popups,
  *     same limitation as <select>; set .value + dispatch 'change' via step().
- *   - Drag-and-drop and canvas-based widgets aren't covered; use step() to
- *     write custom logic while still getting the cursor animation for free.
+ *   - dragTo() covers mouse-event-based drag implementations (most sortable
+ *     lists, sliders, custom drag widgets) — it does not drive native HTML5
+ *     drag-and-drop (draggable="true" + DataTransfer), which needs a trusted
+ *     user gesture in most browsers.
+ *   - pressKey() dispatches real KeyboardEvents that any keydown/keyup
+ *     listener will see, but — like click() — it won't trigger a browser's
+ *     own built-in default action for a key (e.g. Enter alone won't
+ *     auto-submit a form unless the page's JS explicitly does that itself).
+ *   - Canvas-based widgets aren't covered directly; use step() to write
+ *     custom logic while still getting the cursor animation for free.
  *
  * Every acted-on element also gets a highlight border (a separate overlay
  * box, not the element's own outline). By default it PERSISTS — it does not
@@ -62,6 +74,10 @@
  *   await cursor.chooseOption('#menu-trigger', '.menu-item[data-value="pro"]')
  *   await cursor.scroll(null, { amount: 600 })       // scroll window down 600px
  *   await cursor.scroll('#panel', { to: 'bottom' })  // scroll a container to its bottom
+ *   await cursor.pressKey('#search', 'Enter')
+ *   await cursor.hover('#info-icon'); await cursor.unhover()
+ *   await cursor.dragTo('#item-1', '#drop-zone')
+ *   await cursor.waitFor('#async-result', { timeout: 8000 })
  *   cursor.clearHighlight('#name')                   // remove one persisted highlight
  *   cursor.clearHighlights()                         // remove all of them
  *   cursor.stop()                                    // abort whatever is running right now
@@ -102,6 +118,19 @@ function setNativeValue(el, value) {
   else el.value = value;
 }
 
+/** keyCode/which values for the non-printable keys people actually press. */
+const KEY_CODES = {
+  Enter: 13, Tab: 9, Escape: 27, Backspace: 8, Delete: 46,
+  ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39,
+  Home: 36, End: 35, PageUp: 33, PageDown: 34, ' ': 32,
+};
+
+function keyCodeFor(key) {
+  if (key in KEY_CODES) return KEY_CODES[key];
+  if (key.length === 1) return key.toUpperCase().charCodeAt(0);
+  return 0;
+}
+
 const DEFAULTS = {
   color: '#378ADD',
   size: 16,
@@ -130,6 +159,45 @@ const DEFAULTS = {
     }
     setNativeValue(el, text);
     el.dispatchEvent(new Event('input', { bubbles: true }));
+  },
+  onExecuteKey: (el, key, modifiers = {}) => {
+    const eventInit = {
+      key,
+      keyCode: keyCodeFor(key),
+      which: keyCodeFor(key),
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: !!modifiers.ctrl,
+      shiftKey: !!modifiers.shift,
+      altKey: !!modifiers.alt,
+      metaKey: !!modifiers.meta,
+    };
+    el.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+    el.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+  },
+  onExecuteHover: (el, entering) => {
+    if (entering) {
+      el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+      if (typeof PointerEvent === 'function') {
+        el.dispatchEvent(new PointerEvent('pointerenter', { bubbles: false }));
+      }
+    } else {
+      el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+      el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+      if (typeof PointerEvent === 'function') {
+        el.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false }));
+      }
+    }
+  },
+  onExecuteDragStart: (el, pos) => {
+    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: pos.x, clientY: pos.y, button: 0 }));
+  },
+  onExecuteDragMove: (el, pos) => {
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: pos.x, clientY: pos.y }));
+  },
+  onExecuteDragEnd: (el, pos) => {
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: pos.x, clientY: pos.y }));
   },
   scrollSettleTimeout: 1200,
   showCursorDot: true,
@@ -718,6 +786,182 @@ export class AgentCursor {
     });
   }
 
+  /**
+   * Send a key press to a target (or to whatever currently has focus, if
+   * target is omitted). Dispatches real keydown/keyup KeyboardEvents, so it
+   * reaches any keydown/keyup listener bound to the element or its ancestors.
+   *
+   * Common keys: 'Enter', 'Escape', 'Tab', 'ArrowUp'/'ArrowDown'/'ArrowLeft'/
+   * 'ArrowRight', 'Backspace', 'Delete', ' ' (space), 'Home', 'End', or any
+   * single printable character (e.g. 'a').
+   *
+   * options.modifiers: { ctrl, shift, alt, meta } — all optional booleans.
+   *
+   * Known limit: this dispatches synthetic events, so it reaches JS
+   * listeners correctly, but it does NOT trigger a browser's built-in
+   * default action for a key (e.g. pressing Enter alone won't auto-submit a
+   * <form> the way a real keypress would unless the page's own JS listens
+   * for Enter and submits explicitly) — the same synthetic-event caveat that
+   * applies to click().
+   */
+  pressKey(target, key, options = {}) {
+    return this._enqueue(async () => {
+      const el = target ? this._resolve(target) : (document.activeElement || document.body);
+      const step = { type: 'pressKey', target: el, label: options.label, key };
+      this.opts.onBeforeStep?.(step);
+      if (target) await this._moveTo(el);
+      if (typeof el.focus === 'function') el.focus();
+      this.opts.onExecuteKey(el, key, options.modifiers || {});
+      this._highlight(el);
+      await this._wait(this.opts.clickPause);
+      this.opts.onAfterStep?.(step);
+    });
+  }
+
+  /**
+   * Move the cursor to a target and dispatch hover events (mouseenter/
+   * mouseover, plus pointerenter where supported) — for tooltips, hover-
+   * triggered menus, or any :hover-driven CSS/JS. If something else is
+   * already "hovered" from a previous hover() call, its mouseleave/mouseout
+   * fire first. Call unhover() to explicitly leave the current target
+   * without hovering a new one.
+   */
+  hover(target, label) {
+    return this._enqueue(async () => {
+      const el = this._resolve(target);
+      const step = { type: 'hover', target: el, label };
+      this.opts.onBeforeStep?.(step);
+      await this._moveTo(el);
+      if (this._hoveredEl && this._hoveredEl !== el) {
+        this.opts.onExecuteHover(this._hoveredEl, false);
+      }
+      this.opts.onExecuteHover(el, true);
+      this._hoveredEl = el;
+      this._highlight(el);
+      await this._wait(this.opts.clickPause);
+      this.opts.onAfterStep?.(step);
+    });
+  }
+
+  /** Leave whatever element is currently "hovered" via hover(), if any. */
+  unhover(label) {
+    return this._enqueue(async () => {
+      if (this._hoveredEl) {
+        const step = { type: 'unhover', target: this._hoveredEl, label };
+        this.opts.onBeforeStep?.(step);
+        this.opts.onExecuteHover(this._hoveredEl, false);
+        this._hoveredEl = null;
+        this.opts.onAfterStep?.(step);
+      }
+    });
+  }
+
+  /**
+   * Drag from a source element to a target element (or a plain {x, y}
+   * point), animating the cursor smoothly between them and dispatching a
+   * mousedown → a series of mousemove → mouseup sequence — the pattern most
+   * JS-driven sortable lists, sliders, and custom drag interactions listen
+   * for. options.steps controls animation smoothness (default 12),
+   * options.duration the total ms for the move (default 400).
+   *
+   * Known limit: this does NOT drive native HTML5 drag-and-drop
+   * (`<div draggable="true">` + dragstart/dragover/drop + DataTransfer) —
+   * that flow requires a trusted user gesture in most browsers and can't be
+   * reliably reproduced with synthetic events. It covers the much more
+   * common case of mouse-event-based drag implementations.
+   */
+  dragTo(source, target, options = {}) {
+    return this._enqueue(async () => {
+      const sourceEl = this._resolve(source);
+      const isPoint = target && typeof target === 'object' && 'x' in target && 'y' in target;
+      const targetEl = isPoint ? null : this._resolve(target);
+      const step = { type: 'dragTo', target: sourceEl, label: options.label };
+      this.opts.onBeforeStep?.(step);
+
+      const startPos = await this._moveTo(sourceEl);
+      const endPos = isPoint ? target : this._center(targetEl);
+
+      this.opts.onExecuteDragStart(sourceEl, startPos);
+
+      const steps = options.steps ?? 12;
+      const stepDuration = Math.max(8, (options.duration ?? 400) / steps);
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const x = startPos.x + (endPos.x - startPos.x) * t;
+        const y = startPos.y + (endPos.y - startPos.y) * t;
+        if (this.cursorEl) {
+          this.cursorEl.style.left = x + 'px';
+          this.cursorEl.style.top = y + 'px';
+        }
+        this.opts.onExecuteDragMove(sourceEl, { x, y });
+        await this._wait(stepDuration);
+      }
+
+      this.opts.onExecuteDragEnd(sourceEl, endPos);
+      this._highlight(sourceEl);
+      if (targetEl) this._highlight(targetEl);
+      await this._wait(this.opts.clickPause);
+      this.opts.onAfterStep?.(step);
+    });
+  }
+
+  /**
+   * Wait for a selector to match a visible element (or for a predicate
+   * function to return a truthy element) before continuing — for content
+   * that loads or renders asynchronously, instead of guessing a fixed delay.
+   * Resolves with the found element. Rejects with a plain Error on timeout,
+   * or with AgentCursorStopped if stop() is called while waiting.
+   *
+   * target: a selector string, or a function returning an element (or null)
+   * options.timeout: ms before giving up (default 5000)
+   * options.interval: ms between checks (default 100)
+   * options.visible: also require a non-zero bounding rect (default true) —
+   *   set false to accept elements that exist but are currently hidden
+   */
+  waitFor(target, options = {}) {
+    return this._enqueue(async () => {
+      const timeout = options.timeout ?? 5000;
+      const interval = options.interval ?? 100;
+      const requireVisible = options.visible !== false;
+      const step = { type: 'waitFor', target, label: options.label };
+      this.opts.onBeforeStep?.(step);
+
+      const start = performance.now();
+      const found = await new Promise((resolve, reject) => {
+        let timer;
+        const abort = () => { clearTimeout(timer); reject(new AgentCursorStopped()); };
+        this._pendingRejects.add(abort);
+        const tick = () => {
+          let el = null;
+          try {
+            el = typeof target === 'function' ? target() : document.querySelector(target);
+          } catch {
+            el = null;
+          }
+          const visible = !requireVisible || (el && (() => {
+            const r = el.getBoundingClientRect();
+            return r.width > 0 || r.height > 0;
+          })());
+          if (el && visible) {
+            this._pendingRejects.delete(abort);
+            resolve(el);
+            return;
+          }
+          if (performance.now() - start > timeout) {
+            this._pendingRejects.delete(abort);
+            const desc = typeof target === 'string' ? `"${target}"` : 'the given condition';
+            reject(new Error(`AgentCursor: waitFor timed out after ${timeout}ms waiting for ${desc}`));
+            return;
+          }
+          timer = setTimeout(tick, interval);
+        };
+        tick();
+      });
+      this.opts.onAfterStep?.(step);
+      return found;
+    });
+  }
+
   /** Run a fully custom step while still going through the queue/cursor. */
   step(target, action, label) {
     return this._enqueue(async () => {
@@ -746,6 +990,11 @@ export class AgentCursor {
         else if (s.type === 'select') await this.select(s.target, s.value, s.label);
         else if (s.type === 'check') await this.check(s.target, s.checked, s.label);
         else if (s.type === 'chooseOption') await this.chooseOption(s.target, s.option, s.options || {});
+        else if (s.type === 'pressKey') await this.pressKey(s.target, s.key, s.options || {});
+        else if (s.type === 'hover') await this.hover(s.target, s.label);
+        else if (s.type === 'unhover') await this.unhover(s.label);
+        else if (s.type === 'dragTo') await this.dragTo(s.target, s.destination, s.options || {});
+        else if (s.type === 'waitFor') await this.waitFor(s.target, s.options || {});
         else if (s.type === 'custom') await this.step(s.target, s.action, s.label);
       }
     } catch (err) {

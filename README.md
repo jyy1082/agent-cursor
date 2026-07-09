@@ -32,6 +32,10 @@ no build step needed, it's plain ES modules.
 - Native `<select>` support, including multi-select
 - Checkbox/radio/switch support (including ARIA-based custom toggles) that only clicks when the state actually needs to change
 - Custom (div/li-based) dropdown menu support via `chooseOption`
+- Keyboard input: `pressKey()` for Enter/Escape/arrows/etc., with modifier keys
+- Hover/unhover for tooltips and hover-triggered menus
+- Drag and drop for mouse-event-based sortable lists, sliders, and custom drag widgets
+- `waitFor()` polls for asynchronously-loaded content instead of guessing a fixed delay
 - Page and container scrolling, with scroll-settle detection and an optional direction indicator
 - Optional pulsing border around the whole viewport (or a specific container via `pageGlowTarget`) while any step is running — a clear "the system is driving this" signal for the person watching
 - Persistent highlight borders on every acted-on element (on by default,
@@ -109,6 +113,22 @@ stopButton.addEventListener('click', () => cursor.stop())
 await runPromise // resolves quietly even if stop() cut it short
 ```
 
+### Keyboard, hover, drag, and waiting for async content
+
+```js
+await cursor.pressKey('#search', 'Enter')
+await cursor.pressKey('#dropdown', 'ArrowDown')
+await cursor.pressKey(null, 'Escape') // sends to whatever currently has focus
+
+await cursor.hover('#info-icon')   // triggers mouseenter/mouseover (tooltips, hover menus)
+await cursor.unhover()             // triggers mouseleave/mouseout
+
+await cursor.dragTo('#item-1', '#drop-zone')          // element to element
+await cursor.dragTo('#slider-handle', { x: 400, y: 120 }) // element to a raw point
+
+await cursor.waitFor('#async-result', { timeout: 8000 }) // polls instead of guessing a fixed delay
+```
+
 ### Hooking up to your own executor
 
 If your automation already has its own way of clicking/typing (a custom DOM
@@ -132,6 +152,11 @@ const cursor = new AgentCursor({
 | `check(target, checked, label?)` | Set a checkbox, radio, or ARIA switch (`role="switch"`/`aria-checked`) to a specific checked state |
 | `chooseOption(trigger, option, options?)` | Open a custom dropdown and click an option |
 | `scroll(target, options?)` | Scroll the window or a container (`{ amount }` or `{ to: 'top'\|'bottom' }`) |
+| `pressKey(target, key, options?)` | Send a key press (Enter, Escape, arrows, etc.), with optional modifiers |
+| `hover(target, label?)` | Move to a target and dispatch hover events (mouseenter/mouseover) |
+| `unhover(label?)` | Leave whatever's currently hovered via `hover()` |
+| `dragTo(source, target, options?)` | Drag from a source to a target element or `{x, y}` point |
+| `waitFor(target, options?)` | Poll until a selector/predicate matches a visible element, instead of a fixed delay |
 | `moveTo(target)` | Move the cursor without acting |
 | `step(target, action, label?)` | Run custom logic while still getting the cursor animation |
 | `run(steps)` | Run an ordered array of steps of any of the above types, then automatically hide the cursor dot |
@@ -199,8 +224,16 @@ framework's UI ends up as real DOM nodes at runtime.
   security reasons in any browser.
 - Native date/color pickers have the same browser-drawn-popup limitation as
   `<select>`.
-- Drag-and-drop and canvas-based widgets aren't covered directly; use `step()`
-  to write custom logic while still getting the cursor animation for free.
+- `dragTo()` covers mouse-event-based drag (most sortable lists, sliders,
+  custom drag widgets) — it doesn't drive native HTML5 drag-and-drop
+  (`draggable="true"` + `DataTransfer`), which needs a trusted user gesture
+  in most browsers. Canvas-based widgets also aren't covered directly; use
+  `step()` to write custom logic while still getting the cursor animation
+  for free.
+- `pressKey()` dispatches real KeyboardEvents any listener will see, but —
+  like `click()` — it won't trigger a browser's own built-in default action
+  for a key (e.g. Enter alone won't auto-submit a form unless the page's own
+  JS explicitly does that).
 - A "form" built entirely from generic `<div>`s with no semantic markup at
   all (no `role`/`aria-checked`, no `contenteditable`, no real `<input>`
   anywhere) has no standard state to read or write — `click()` still works
