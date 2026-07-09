@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>agent-cursor demo</title>
+<title>page-pilot demo</title>
 <style>
   :root {
     --bg: #ffffff;
@@ -60,7 +60,7 @@
 </style>
 </head>
 <body>
-  <h1>agent-cursor demo</h1>
+  <h1>page-pilot demo</h1>
   <p class="sub">Click "Run full demo" to watch the library drive every control type: typing, a native select, a custom dropdown, a checkbox, a hover tooltip, Escape-to-close, a drag-and-drop, waiting for async content, scrolling, and a final click. Watch the border around the card below — it pulses while automation is running.</p>
 
   <div id="demo-card">
@@ -135,12 +135,12 @@
   <p id="status">Idle. Highlights persist across steps until you press reset.</p>
 
   <script type="module">
-    import { AgentCursor } from './agent-cursor.js';
+    import { PagePilot } from './page-pilot.js';
 
     const status = document.getElementById('status');
     const say = (t) => { status.textContent = t; };
 
-    const cursor = new AgentCursor({
+    const cursor = new PagePilot({
       showPageGlow: true,
       pageGlowTarget: '#demo-card',
       pageGlowRadius: 12,

@@ -1,5 +1,5 @@
 /**
- * AgentCursor
+ * PagePilot
  * A dependency-free visualization layer for automated page operations.
  * It does NOT decide what to click — it only animates a virtual cursor to a
  * target, plays a click/input feedback effect, then lets your own executor
@@ -65,8 +65,8 @@
  * corners, useful when wrapping a container that itself has rounded corners.
  *
  * Usage:
- *   import { AgentCursor } from './agent-cursor.js'
- *   const cursor = new AgentCursor({ onExecuteClick: el => el.click() })
+ *   import { PagePilot } from './page-pilot.js'
+ *   const cursor = new PagePilot({ onExecuteClick: el => el.click() })
  *   await cursor.click(document.querySelector('#submit'))
  *   await cursor.type(document.querySelector('#name'), 'Acme Corp')
  *   await cursor.select(document.querySelector('#country'), 'US')
@@ -88,13 +88,13 @@
  * Thrown internally when stop() aborts a step in progress. run() catches
  * this and resolves quietly instead of rejecting; if you call individual
  * methods (click/type/etc.) directly instead of run(), you'll see this
- * rejection yourself — check `err instanceof AgentCursorStopped` if you
+ * rejection yourself — check `err instanceof PagePilotStopped` if you
  * want to distinguish "the user hit stop" from an actual failure.
  */
-export class AgentCursorStopped extends Error {
+export class PagePilotStopped extends Error {
   constructor() {
-    super('AgentCursor: aborted by stop()');
-    this.name = 'AgentCursorStopped';
+    super('PagePilot: aborted by stop()');
+    this.name = 'PagePilotStopped';
   }
 }
 
@@ -214,7 +214,7 @@ const DEFAULTS = {
   onAfterStep: null, // (step) => void
 };
 
-export class AgentCursor {
+export class PagePilot {
   constructor(options = {}) {
     this.opts = { ...DEFAULTS, ...options };
     if (!this.opts.highlightColor) this.opts.highlightColor = this.opts.color;
@@ -261,10 +261,10 @@ export class AgentCursor {
    * default); shown automatically for as long as any queued step is running.
    */
   _buildGlowEl() {
-    if (!document.getElementById('agent-cursor-glow-style')) {
+    if (!document.getElementById('page-pilot-glow-style')) {
       const style = document.createElement('style');
-      style.id = 'agent-cursor-glow-style';
-      style.textContent = '@keyframes agent-cursor-glow-pulse{0%,100%{opacity:.55}50%{opacity:1}}';
+      style.id = 'page-pilot-glow-style';
+      style.textContent = '@keyframes page-pilot-glow-pulse{0%,100%{opacity:.55}50%{opacity:1}}';
       document.head.appendChild(style);
     }
     const el = document.createElement('div');
@@ -324,7 +324,7 @@ export class AgentCursor {
     else this._positionGlowEl(); // target may have moved/resized since it was last shown
     if (this._glowHideTimer) { clearTimeout(this._glowHideTimer); this._glowHideTimer = null; }
     this._glowEl.style.opacity = '1';
-    this._glowEl.style.animation = this.reduced ? 'none' : 'agent-cursor-glow-pulse 1.4s ease-in-out infinite';
+    this._glowEl.style.animation = this.reduced ? 'none' : 'page-pilot-glow-pulse 1.4s ease-in-out infinite';
   }
 
   /** Debounced so the glow stays lit continuously across back-to-back steps
@@ -507,7 +507,7 @@ export class AgentCursor {
       let stableFrames = 0;
       const start = performance.now();
       let rafId;
-      const abort = () => { cancelAnimationFrame(rafId); reject(new AgentCursorStopped()); };
+      const abort = () => { cancelAnimationFrame(rafId); reject(new PagePilotStopped()); };
       this._pendingRejects.add(abort);
       const tick = () => {
         const top = scrollable === window ? window.scrollY : scrollable.scrollTop;
@@ -534,7 +534,7 @@ export class AgentCursor {
       // right now — most likely a menu/dropdown whose open state doesn't
       // match what the caller expected. Moving to (0, 0) would be worse than
       // doing nothing, so keep the cursor at its last known position.
-      console.warn('[AgentCursor] target has zero size (likely hidden) — cursor not moved:', el);
+      console.warn('[PagePilot] target has zero size (likely hidden) — cursor not moved:', el);
       return this._lastPos || { x: 0, y: 0 };
     }
     const { x, y } = this._center(el);
@@ -555,7 +555,7 @@ export class AgentCursor {
         this._pendingRejects.delete(abort);
         resolve();
       }, ms);
-      const abort = () => { clearTimeout(timer); reject(new AgentCursorStopped()); };
+      const abort = () => { clearTimeout(timer); reject(new PagePilotStopped()); };
       this._pendingRejects.add(abort);
     });
   }
@@ -570,8 +570,8 @@ export class AgentCursor {
       try {
         return await fn();
       } catch (err) {
-        if (!(err instanceof AgentCursorStopped)) {
-          console.error('[AgentCursor] step failed:', err);
+        if (!(err instanceof PagePilotStopped)) {
+          console.error('[PagePilot] step failed:', err);
         }
         throw err;
       } finally {
@@ -591,7 +591,7 @@ export class AgentCursor {
   _resolve(target) {
     if (typeof target === 'string') {
       const el = document.querySelector(target);
-      if (!el) throw new Error(`AgentCursor: no element matches "${target}"`);
+      if (!el) throw new Error(`PagePilot: no element matches "${target}"`);
       return el;
     }
     return target;
@@ -779,7 +779,7 @@ export class AgentCursor {
         optionEl = this._resolve(option);
       }
       if (!optionEl) {
-        throw new Error('AgentCursor: chooseOption could not resolve the option element');
+        throw new Error('PagePilot: chooseOption could not resolve the option element');
       }
       await this._animatedClick(optionEl);
       this.opts.onAfterStep?.(step);
@@ -910,7 +910,7 @@ export class AgentCursor {
    * function to return a truthy element) before continuing — for content
    * that loads or renders asynchronously, instead of guessing a fixed delay.
    * Resolves with the found element. Rejects with a plain Error on timeout,
-   * or with AgentCursorStopped if stop() is called while waiting.
+   * or with PagePilotStopped if stop() is called while waiting.
    *
    * target: a selector string, or a function returning an element (or null)
    * options.timeout: ms before giving up (default 5000)
@@ -929,7 +929,7 @@ export class AgentCursor {
       const start = performance.now();
       const found = await new Promise((resolve, reject) => {
         let timer;
-        const abort = () => { clearTimeout(timer); reject(new AgentCursorStopped()); };
+        const abort = () => { clearTimeout(timer); reject(new PagePilotStopped()); };
         this._pendingRejects.add(abort);
         const tick = () => {
           let el = null;
@@ -950,7 +950,7 @@ export class AgentCursor {
           if (performance.now() - start > timeout) {
             this._pendingRejects.delete(abort);
             const desc = typeof target === 'string' ? `"${target}"` : 'the given condition';
-            reject(new Error(`AgentCursor: waitFor timed out after ${timeout}ms waiting for ${desc}`));
+            reject(new Error(`PagePilot: waitFor timed out after ${timeout}ms waiting for ${desc}`));
             return;
           }
           timer = setTimeout(tick, interval);
@@ -998,7 +998,7 @@ export class AgentCursor {
         else if (s.type === 'custom') await this.step(s.target, s.action, s.label);
       }
     } catch (err) {
-      if (err instanceof AgentCursorStopped) return; // intentionally stopped, not a failure
+      if (err instanceof PagePilotStopped) return; // intentionally stopped, not a failure
       throw err;
     }
     this.hideCursor();

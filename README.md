@@ -1,4 +1,4 @@
-# agent-cursor
+# page-pilot
 
 A dependency-free visualization layer for automated webpage operations.
 
@@ -14,7 +14,7 @@ a UI framework or animation library.
 
 ## Demo
 
-**[Open the live demo](https://jyy1082.github.io/agent-cursor/demo.html)** —
+**[Open the live demo](https://jyy1082.github.io/page-pilot/demo.html)** —
 press "Run full demo" to watch the library drive a real form: typing, a
 native `<select>`, a custom dropdown, a checkbox, scrolling a container, and
 a final click, with a highlight border left on every field it touched.
@@ -47,17 +47,17 @@ no build step needed, it's plain ES modules.
 ## Install
 
 ```bash
-npm install agent-cursor
+npm install page-pilot
 ```
 
-Or just copy `agent-cursor.js` directly into your project.
+Or just copy `page-pilot.js` directly into your project.
 
 ## Usage
 
 ```js
-import { AgentCursor } from 'agent-cursor'
+import { PagePilot } from 'page-pilot'
 
-const cursor = new AgentCursor({
+const cursor = new PagePilot({
   onExecuteClick: (el) => el.click(),
 })
 
@@ -77,7 +77,7 @@ cursor.destroy()
 ### "The system is doing this" page glow
 
 ```js
-const cursor = new AgentCursor({ showPageGlow: true })
+const cursor = new PagePilot({ showPageGlow: true })
 // Now the whole viewport gets a pulsing colored border for as long as any
 // click/type/select/etc. is running, and it fades out once the queue is idle.
 ```
@@ -85,7 +85,7 @@ const cursor = new AgentCursor({ showPageGlow: true })
 Wrap a specific container instead of the whole page:
 
 ```js
-const cursor = new AgentCursor({ showPageGlow: true, pageGlowTarget: '#chat-panel' })
+const cursor = new PagePilot({ showPageGlow: true, pageGlowTarget: '#chat-panel' })
 // The glow hugs #chat-panel's current bounding box instead of the viewport,
 // and stays aligned to it if the page scrolls or resizes.
 ```
@@ -136,7 +136,7 @@ controller, a browser-extension bridge, whatever), just point the hooks at it
 instead of the default `el.click()` / native-setter input:
 
 ```js
-const cursor = new AgentCursor({
+const cursor = new PagePilot({
   onExecuteClick: (el) => myController.clickElement(indexOf(el)),
   onExecuteInput: (el, text) => myController.inputText(indexOf(el), text),
 })
@@ -172,7 +172,7 @@ const cursor = new AgentCursor({
 ### Options
 
 ```js
-new AgentCursor({
+new PagePilot({
   color: '#378ADD',
   size: 16,
   moveDuration: 480,

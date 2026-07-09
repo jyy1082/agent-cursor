@@ -1,15 +1,15 @@
 {
-  "name": "agent-cursor",
+  "name": "page-pilot",
   "version": "0.1.0",
   "description": "A dependency-free visual layer for automated page operations: an animated cursor, click ripples, and persistent highlight borders for AI/browser automation agents.",
   "type": "module",
-  "main": "agent-cursor.js",
-  "module": "agent-cursor.js",
+  "main": "page-pilot.js",
+  "module": "page-pilot.js",
   "exports": {
-    ".": "./agent-cursor.js"
+    ".": "./page-pilot.js"
   },
   "files": [
-    "agent-cursor.js",
+    "page-pilot.js",
     "README.md",
     "LICENSE"
   ],
