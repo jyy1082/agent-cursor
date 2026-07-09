@@ -1,5 +1,7 @@
 # page-pilot
 
+**English** · [中文](./README.zh-CN.md)
+
 **Version 0.7.0** · see [CHANGELOG.md](./CHANGELOG.md) for release history
 
 A dependency-free visualization layer for automated webpage operations.
