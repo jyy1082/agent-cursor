@@ -1,5 +1,7 @@
 # page-pilot
 
+**Version 0.7.0** · see [CHANGELOG.md](./CHANGELOG.md) for release history
+
 A dependency-free visualization layer for automated webpage operations.
 
 It does **not** decide what to click or type — that's your own automation
