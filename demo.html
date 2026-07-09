@@ -61,7 +61,7 @@
 </head>
 <body>
   <h1>agent-cursor demo</h1>
-  <p class="sub">Click "Run full demo" to watch the library drive every control type: typing, a native select, a custom dropdown, a checkbox, scrolling, and a final click. Watch the border around the card below — it pulses while automation is running.</p>
+  <p class="sub">Click "Run full demo" to watch the library drive every control type: typing, a native select, a custom dropdown, a checkbox, a hover tooltip, Escape-to-close, a drag-and-drop, waiting for async content, scrolling, and a final click. Watch the border around the card below — it pulses while automation is running.</p>
 
   <div id="demo-card">
   <div class="actions">
@@ -87,7 +87,8 @@
   </div>
 
   <div class="field">
-    <label>Plan</label>
+    <label>Plan <span id="plan-info" style="cursor:help; color:var(--text-muted);" title="">&#9432;</span></label>
+    <div id="plan-tooltip" style="display:none; position:absolute; top:-4px; left:60px; background:#111; color:#fff; font-size:12px; padding:6px 10px; border-radius:6px; max-width:220px; z-index:20;">Choose the plan that fits your team size.</div>
     <button id="plan-trigger" style="width:100%; text-align:left; display:flex; justify-content:space-between; align-items:center;">
       <span id="plan-label">Choose a plan</span>
       <span>&#9662;</span>
@@ -99,12 +100,23 @@
     </div>
   </div>
 
+  <div class="field">
+    <label>Drag the chip into the drop zone</label>
+    <div id="drag-track" style="position:relative; height:60px; border:1px dashed var(--border-strong); border-radius:8px;">
+      <div id="drag-chip" style="position:absolute; left:8px; top:14px; width:80px; height:32px; background:var(--accent); color:#fff; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:13px; cursor:grab; user-select:none;">Drag me</div>
+      <div id="drop-zone" style="position:absolute; right:8px; top:6px; width:110px; height:48px; border:2px dashed var(--border-strong); border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--text-muted); text-align:center;">Drop here</div>
+    </div>
+  </div>
+
   <label class="checkbox-row">
     <input id="f-agree" type="checkbox" />
     Subscribe to product updates
   </label>
 
-  <label for="scroll-box">Recent activity</label>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+    <label for="scroll-box" style="margin-bottom:0;">Recent activity</label>
+    <button id="load-more-btn" style="height:auto; padding:3px 10px; font-size:12px;">Load more</button>
+  </div>
   <div id="scroll-box">
     <p>Item 1: account created</p>
     <p>Item 2: profile updated</p>
@@ -148,6 +160,62 @@
       });
     });
 
+    // Escape closes the plan menu, wherever focus is.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && planMenu.style.display === 'block') {
+        planMenu.style.display = 'none';
+      }
+    });
+
+    // Hover tooltip on the info icon next to "Plan".
+    const planInfo = document.getElementById('plan-info');
+    const planTooltip = document.getElementById('plan-tooltip');
+    planInfo.addEventListener('mouseenter', () => { planTooltip.style.display = 'block'; });
+    planInfo.addEventListener('mouseleave', () => { planTooltip.style.display = 'none'; });
+
+    // Drag chip -> drop zone.
+    const dragTrack = document.getElementById('drag-track');
+    const dragChip = document.getElementById('drag-chip');
+    const dropZone = document.getElementById('drop-zone');
+    const dragChipStart = { left: '8px', top: '14px' };
+    let dragging = false, dragOffsetX = 0, dragOffsetY = 0;
+    dragChip.addEventListener('mousedown', (e) => {
+      dragging = true;
+      const r = dragChip.getBoundingClientRect();
+      dragOffsetX = e.clientX - r.left;
+      dragOffsetY = e.clientY - r.top;
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const trackRect = dragTrack.getBoundingClientRect();
+      dragChip.style.left = (e.clientX - trackRect.left - dragOffsetX) + 'px';
+      dragChip.style.top = (e.clientY - trackRect.top - dragOffsetY) + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      const zoneRect = dropZone.getBoundingClientRect();
+      const chipRect = dragChip.getBoundingClientRect();
+      const cx = chipRect.left + chipRect.width / 2;
+      const cy = chipRect.top + chipRect.height / 2;
+      if (cx >= zoneRect.left && cx <= zoneRect.right && cy >= zoneRect.top && cy <= zoneRect.bottom) {
+        dropZone.textContent = 'Dropped!';
+        dropZone.style.borderColor = '#22c55e';
+        dropZone.style.color = '#22c55e';
+      }
+    });
+
+    // Load more -> appends content asynchronously, for the waitFor demo.
+    document.getElementById('load-more-btn').addEventListener('click', () => {
+      if (document.getElementById('loaded-item')) return;
+      setTimeout(() => {
+        const p = document.createElement('p');
+        p.id = 'loaded-item';
+        p.textContent = 'Item 8: bonus item loaded asynchronously';
+        document.getElementById('scroll-box').appendChild(p);
+      }, 900);
+    });
+
     let wasStopped = false;
 
     async function runDemo() {
@@ -159,8 +227,16 @@
       await cursor.run([
         { type: 'type', target: '#f-name', text: 'Jane Cooper', label: 'Typing full name' },
         { type: 'select', target: '#f-country', value: 'us', label: 'Selecting country' },
-        { type: 'chooseOption', target: '#plan-trigger', option: '.menu-opt[data-value="pro"]', label: 'Choosing the pro plan' },
+        { type: 'hover', target: '#plan-info', label: 'Hovering the plan info icon' },
+        { type: 'unhover', label: 'Moving away (tooltip closes)' },
+        { type: 'click', target: '#plan-trigger', label: 'Opening the plan menu' },
+        { type: 'pressKey', target: null, key: 'Escape', label: 'Pressing Escape to close it' },
+        { type: 'chooseOption', target: '#plan-trigger', option: '.menu-opt[data-value="pro"]', label: 'Reopening and choosing the pro plan' },
         { type: 'check', target: '#f-agree', checked: true, label: 'Checking the subscribe box' },
+        { type: 'click', target: '#load-more-btn', label: 'Loading more activity' },
+        { type: 'waitFor', target: '#loaded-item', options: { timeout: 3000, label: 'Waiting for it to finish loading' } },
+        { type: 'click', target: '#loaded-item', label: 'Loaded item appeared' },
+        { type: 'dragTo', target: '#drag-chip', destination: '#drop-zone', label: 'Dragging the chip into the drop zone' },
         { type: 'scroll', target: '#scroll-box', options: { to: 'bottom' }, label: 'Scrolling activity list' },
         { type: 'click', target: '#f-submit', label: 'Clicking submit' },
       ]);
@@ -188,6 +264,13 @@
       document.getElementById('f-agree').checked = false;
       planLabel.textContent = 'Choose a plan';
       planMenu.style.display = 'none';
+      planTooltip.style.display = 'none';
+      dragChip.style.left = dragChipStart.left;
+      dragChip.style.top = dragChipStart.top;
+      dropZone.textContent = 'Drop here';
+      dropZone.style.borderColor = '';
+      dropZone.style.color = '';
+      document.getElementById('loaded-item')?.remove();
       document.getElementById('scroll-box').scrollTop = 0;
       cursor.clearHighlights();
       say('Idle. Highlights persist across steps until you press reset.');
