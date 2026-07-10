@@ -2,7 +2,7 @@
 
 [English](./README.md) · **中文**
 
-**版本 0.12.1** · 完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)
+**版本 0.12.2** · 完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)
 
 一个零依赖的"自动化网页操作可视化层"。
 
@@ -243,7 +243,7 @@ await cursor.click({ selector: '[id="dup"]', index: 1, frame: '#payment-iframe' 
 
 光标圆点、点击涟漪、高亮框，都会正确换算 iframe 在页面上的实际位置——因为 `getBoundingClientRect()` 返回的坐标是相对于元素自己所在窗口的，不是相对于顶层页面，page-pilot 会先把 iframe 内部的相对坐标换算成顶层坐标，再去画这些视觉效果。
 
-如果 iframe 里的一次点击导致这个 iframe **自己**跳转或者重新加载内容（很常见，比如内嵌的支付组件、多步骤表单——顶层页面的地址栏完全不变，只是 iframe 自己变了），`waitFor({ selector, frame }, ...)` 会正确跟着这次重新加载走，而不会卡在轮询一个已经作废的旧文档上：
+如果一次点击导致某个 iframe **自己**跳转或者重新加载内容（很常见，比如内嵌的支付组件、多步骤表单——顶层页面的地址栏完全不变，只是 iframe 自己变了），`waitFor({ selector, frame }, ...)` 会正确跟着这次重新加载走，而不会卡在轮询一个已经作废的旧文档上。不管触发这次点击的按钮是在 iframe 里面，还是在父页面上（比如父页面上的一个"刷新"按钮，或者 `<form target="iframe-name">` 这种提交方式）——只要变化的是 iframe 自己的内容，都一样能正常工作：
 
 ```js
 await cursor.click({ selector: '#next-step-btn', frame: '#payment-iframe' })

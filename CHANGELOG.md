@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/) — while
 in `0.x`, minor version bumps may include breaking changes.
 
+## [0.12.2]
+
+### Documentation
+- Clarified and verified that 0.12.1's `waitFor()` iframe-reload fix works
+  the same way regardless of whether the triggering click happens inside
+  the iframe or on the parent page (e.g. a "refresh" button on the parent
+  page, or a `<form target="iframe-name">` submission) — only the iframe's
+  own content needs to be what's changing. Added a real-browser test for
+  this specific case (trigger button outside the iframe). No functional
+  code change; 0.12.1 already covered this correctly.
+
 ## [0.12.1]
 
 ### Fixed

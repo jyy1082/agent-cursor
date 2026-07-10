@@ -437,6 +437,30 @@ async function main() {
     await page.close();
   }
 
+  console.log('=== REGRESSION CHECK: a button OUTSIDE the iframe reloading the iframe still works with waitFor ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4 });
+      // The trigger is a plain top-level button — no `frame` on this step at
+      // all, since the button itself lives on the parent page, not inside
+      // the iframe. Only the iframe's own content changes as a result.
+      await cursor.click('#reload-iframe-from-outside');
+      let waitForError = null;
+      let found = null;
+      try {
+        found = await cursor.waitFor({ selector: '#new-content-btn', frame: '#test-iframe' }, { timeout: 3000 });
+      } catch (e) {
+        waitForError = e.message;
+      }
+      cursor.destroy();
+      return { foundId: found && found.id, waitForError };
+    });
+    check('waitFor correctly picks up the new iframe document even though the trigger click was outside it', result.foundId === 'new-content-btn');
+    if (result.waitForError) console.log('    (waitFor error was:', result.waitForError, ')');
+    await page.close();
+  }
+
   console.log('=== REGRESSION CHECK: waitFor(state: "gone") also follows the iframe through its own reload ===');
   {
     const page = await freshPage();

@@ -2,7 +2,7 @@
 
 **English** · [中文](./README.zh-CN.md)
 
-**Version 0.12.1** · see [CHANGELOG.md](./CHANGELOG.md) for release history
+**Version 0.12.2** · see [CHANGELOG.md](./CHANGELOG.md) for release history
 
 A dependency-free visualization layer for automated webpage operations.
 
@@ -291,11 +291,14 @@ relative to an element's own window, not the top page, so page-pilot
 translates iframe-relative coordinates into top-level ones before drawing
 anything.
 
-If a click inside an iframe causes that iframe to navigate or reload its
-own content (common for embedded payment widgets or multi-step forms — the
-top page's URL never changes, only the iframe's), `waitFor({ selector,
-frame }, ...)` correctly follows it through the reload instead of getting
-stuck polling the old, torn-down document:
+If a click causes an iframe to navigate or reload its own content (common
+for embedded payment widgets or multi-step forms — the top page's URL
+never changes, only the iframe's), `waitFor({ selector, frame }, ...)`
+correctly follows it through the reload instead of getting stuck polling
+the old, torn-down document. This works the same way whether the
+triggering click happened inside the iframe or on the parent page (e.g. a
+"refresh" button on the parent page, or a `<form target="iframe-name">`
+submission) — only the iframe's own content needs to be what's changing:
 
 ```js
 await cursor.click({ selector: '#next-step-btn', frame: '#payment-iframe' })
