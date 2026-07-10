@@ -2,7 +2,7 @@
 
 [English](./README.md) · **中文**
 
-**版本 0.10.0** · 完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)
+**版本 0.11.0** · 完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)
 
 一个零依赖的"自动化网页操作可视化层"。
 
@@ -152,6 +152,13 @@ await cursor.dragTo('#item-1', '#drop-zone')              // 元素拖到元素
 await cursor.dragTo('#slider-handle', { x: 400, y: 120 }) // 元素拖到坐标点
 
 await cursor.waitFor('#async-result', { timeout: 8000 }) // 轮询等待，而不是猜一个固定延时
+
+// 等一个元素消失,而不是等它出现——用在"下一步操作依赖某个即将被替换的旧元素真的已经没了"这种场景
+// 之前非常有用（很多页面不整页跳转、只是异步更新内容，如果不等旧元素真的消失，
+// 下一步很可能在更新完成之前就跑了，点到了那个还没被替换掉的旧元素上）：
+await cursor.click('#save-btn')
+await cursor.waitFor('#save-btn', { state: 'gone', timeout: 3000 })
+await cursor.waitFor('#saved-confirmation')
 ```
 
 ### 接入你自己的执行逻辑
@@ -179,7 +186,7 @@ const cursor = new PagePilot({
 | `hover(target, label?)` | 移动到目标并派发悬停事件（mouseenter/mouseover） |
 | `unhover(label?)` | 离开当前通过 `hover()` 悬停的元素 |
 | `dragTo(source, target, options?)` | 从一个来源拖到目标元素或者一个 `{x, y}` 坐标点 |
-| `waitFor(target, options?)` | 轮询直到某个选择器/条件匹配到可见元素，而不是固定延时等待 |
+| `waitFor(target, options?)` | 轮询直到某个选择器/条件匹配到可见元素（或者，配合 `{ state: 'gone' }`，等到它消失），而不是固定延时等待 |
 | `moveTo(target)` | 只移动光标，不执行操作 |
 | `step(target, action, label?)` | 运行自定义逻辑，同时仍然获得光标动画效果 |
 | `run(steps)` | 按顺序执行一组步骤（以上任意类型），执行完自动隐藏光标 |

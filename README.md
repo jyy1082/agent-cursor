@@ -2,7 +2,7 @@
 
 **English** · [中文](./README.zh-CN.md)
 
-**Version 0.10.0** · see [CHANGELOG.md](./CHANGELOG.md) for release history
+**Version 0.11.0** · see [CHANGELOG.md](./CHANGELOG.md) for release history
 
 A dependency-free visualization layer for automated webpage operations.
 
@@ -170,6 +170,15 @@ await cursor.dragTo('#item-1', '#drop-zone')          // element to element
 await cursor.dragTo('#slider-handle', { x: 400, y: 120 }) // element to a raw point
 
 await cursor.waitFor('#async-result', { timeout: 8000 }) // polls instead of guessing a fixed delay
+
+// Wait for something to disappear instead of appear — useful right before a
+// step that depends on an earlier, about-to-be-replaced element actually
+// having been removed first (common on pages that update content
+// asynchronously without a full navigation, where the next step can
+// otherwise run before that update lands and hit the stale old element):
+await cursor.click('#save-btn')
+await cursor.waitFor('#save-btn', { state: 'gone', timeout: 3000 })
+await cursor.waitFor('#saved-confirmation')
 ```
 
 ### Hooking up to your own executor
@@ -199,7 +208,7 @@ const cursor = new PagePilot({
 | `hover(target, label?)` | Move to a target and dispatch hover events (mouseenter/mouseover) |
 | `unhover(label?)` | Leave whatever's currently hovered via `hover()` |
 | `dragTo(source, target, options?)` | Drag from a source to a target element or `{x, y}` point |
-| `waitFor(target, options?)` | Poll until a selector/predicate matches a visible element, instead of a fixed delay |
+| `waitFor(target, options?)` | Poll until a selector/predicate matches a visible element (or, with `{ state: 'gone' }`, until it disappears), instead of a fixed delay |
 | `moveTo(target)` | Move the cursor without acting |
 | `step(target, action, label?)` | Run custom logic while still getting the cursor animation |
 | `run(steps)` | Run an ordered array of steps of any of the above types, then automatically hide the cursor dot |

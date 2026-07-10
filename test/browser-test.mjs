@@ -254,6 +254,91 @@ async function main() {
     await page.close();
   }
 
+  console.log('=== waitFor with state: "gone" waits for an element to disappear ===');
+  {
+    const page = await freshPage();
+    const found = await page.evaluate(async () => {
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4 });
+      document.getElementById('stale-btn').click(); // triggers the 300ms async swap
+      await cursor.waitFor('#stale-btn', { state: 'gone', timeout: 2000 });
+      cursor.destroy();
+      return document.getElementById('stale-btn') === null;
+    });
+    check('waitFor resolves once the stale element is actually removed', found === true);
+    await page.close();
+  }
+
+  console.log('=== REGRESSION SCENARIO: without waitFor, the next click can hit the stale element ===');
+  {
+    const page = await freshPage();
+    const clickedStale = await page.evaluate(async () => {
+      const cursor = new window.PagePilot({ moveDuration: 2, clickPause: 2 });
+      let staleWasClicked = false;
+      document.getElementById('stale-btn').addEventListener('click', () => {
+        // the FIRST click (intentional); a second click landing here too
+        // means the "next step" hit the stale button instead of #fresh-btn
+      });
+      await cursor.run([
+        { type: 'click', target: '#stale-btn' }, // triggers the 300ms async swap
+        // no waitFor here on purpose — demonstrates the exact race condition
+      ]);
+      // Immediately try to interact with what SHOULD be the new element —
+      // reflects "the next step ran before the page finished updating".
+      try {
+        await cursor.click('#fresh-btn');
+        return false; // if this succeeds, the swap already happened in time (not the race we're demonstrating)
+      } catch {
+        staleWasClicked = document.getElementById('stale-btn') !== null; // old element still present
+        return staleWasClicked;
+      } finally {
+        cursor.destroy();
+      }
+    });
+    check('demonstrates the race: #fresh-btn is not there yet, old element may still linger', clickedStale === true);
+    await page.close();
+  }
+
+  console.log('=== FIX: waitFor(state: "gone") then the new element correctly resolves the race ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      const cursor = new window.PagePilot({ moveDuration: 2, clickPause: 2 });
+      let freshClicked = false;
+      await cursor.run([
+        { type: 'click', target: '#stale-btn' },
+        { type: 'waitFor', target: '#stale-btn', options: { state: 'gone', timeout: 2000 } },
+        { type: 'waitFor', target: '#fresh-btn', options: { timeout: 2000 } },
+        { type: 'click', target: '#fresh-btn' },
+      ]);
+      cursor.destroy();
+      return {
+        staleGone: document.getElementById('stale-btn') === null,
+        freshExists: document.getElementById('fresh-btn') !== null,
+      };
+    });
+    check('with waitFor in between, the stale element is confirmed gone first', result.staleGone === true);
+    check('and the new element exists and gets clicked correctly', result.freshExists === true);
+    await page.close();
+  }
+
+  console.log('=== waitFor(state: "gone") times out with a clear message if the element never disappears ===');
+  {
+    const page = await freshPage();
+    const message = await page.evaluate(async () => {
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4 });
+      try {
+        await cursor.waitFor('#top-btn', { state: 'gone', timeout: 200 }); // never removed
+        return null;
+      } catch (e) {
+        return e.message;
+      } finally {
+        cursor.destroy();
+      }
+    });
+    check('error message says "disappear", not "appear"', typeof message === 'string' && message.includes('disappear'));
+    await page.close();
+  }
+
   console.log('=== a bad frame selector produces a clear error, not a silent no-op ===');
   {
     const page = await freshPage();

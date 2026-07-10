@@ -9,11 +9,24 @@
   <button id="dup-btn">First</button>
   <button id="dup-btn">Second</button>
   <button id="dup-btn">Third</button>
+  <button id="stale-btn">Loading...</button>
   <iframe id="test-iframe" src="/test/iframe-fixture.html" style="width:300px; height:200px; border:1px solid #ccc;"></iframe>
 
   <script type="module">
     import { PagePilot } from '/page-pilot.js';
     window.PagePilot = PagePilot;
+
+    // Simulates a common real-world SPA pattern: clicking triggers an async
+    // update that removes the old element some time later (not instantly).
+    document.getElementById('stale-btn').addEventListener('click', () => {
+      setTimeout(() => {
+        document.getElementById('stale-btn').remove();
+        const fresh = document.createElement('button');
+        fresh.id = 'fresh-btn';
+        fresh.textContent = 'Ready!';
+        document.body.appendChild(fresh);
+      }, 300);
+    });
   </script>
 </body>
 </html>

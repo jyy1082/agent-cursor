@@ -5,6 +5,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/) — while
 in `0.x`, minor version bumps may include breaking changes.
 
+## [0.11.0] — waitFor(state: 'gone')
+
+### Added
+- `waitFor()` now accepts `options.state: 'gone'` to wait for an element to
+  disappear (removed from the DOM, or become invisible) instead of the
+  default behavior of waiting for one to appear. This directly addresses a
+  real race condition on pages that update content asynchronously without a
+  full navigation: a step immediately following one that triggers such an
+  update can otherwise run before the update lands, hitting a stale/about-
+  to-be-replaced element instead of the new one. The fix is to wait for the
+  old element to actually be gone (and/or the new one to appear) before
+  continuing, rather than guessing a fixed delay.
+- 4 new real-browser tests, including one that deliberately reproduces the
+  race condition without `waitFor` (confirming it's real and repeatable),
+  and one confirming `state: 'gone'` resolves it correctly end to end.
+
 ## [0.10.0] — Duplicate-id target resolution
 
 ### Added
