@@ -5,6 +5,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/) — while
 in `0.x`, minor version bumps may include breaking changes.
 
+## [0.12.1]
+
+### Fixed
+- `waitFor()` resolved the target document for a `{ selector, frame }`
+  target once, before starting to poll, instead of on every check. If the
+  iframe itself navigated or reloaded its own content while `waitFor` was
+  waiting (e.g. a button inside the iframe that reloads just that iframe,
+  without the top page navigating at all — common for embedded payment
+  widgets or multi-step forms), its `contentDocument` gets replaced with a
+  brand-new `Document` object, and polling kept querying the old,
+  torn-down one forever, timing out even once the real new content was
+  ready. Now re-resolves the frame's document on every poll tick, so it
+  correctly follows the iframe through its own navigation. Verified with 2
+  new real-browser tests, for both the default "wait for it to appear" and
+  `state: 'gone'`.
+
 ## [0.12.0] — Text-based target resolution
 
 ### Added

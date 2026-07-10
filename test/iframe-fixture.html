@@ -13,6 +13,7 @@
   </select>
   <input id="iframe-checkbox" type="checkbox" />
   <button id="iframe-btn">Iframe button</button>
+  <button id="reload-btn">Reload iframe content</button>
   <div id="iframe-scroll-box" style="height:100px; overflow-y:auto;">
     <div style="height:1000px;">tall content</div>
   </div>
@@ -20,6 +21,12 @@
     window.__iframeButtonClicked = false;
     document.getElementById('iframe-btn').addEventListener('click', () => {
       window.__iframeButtonClicked = true;
+    });
+    document.getElementById('reload-btn').addEventListener('click', () => {
+      // Simulates a real (non-SPA) navigation scoped to just this iframe —
+      // e.g. an embedded payment widget or multi-step form that reloads its
+      // own content after a click, without the top page navigating at all.
+      setTimeout(() => { window.location.href = '/test/iframe-fixture-2.html'; }, 200);
     });
   </script>
 </body>

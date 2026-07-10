@@ -412,6 +412,52 @@ async function main() {
     await page.close();
   }
 
+  console.log('=== REGRESSION CHECK: clicking a button that reloads the IFRAME itself (not the top page) ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4 });
+      // Triggers a real navigation scoped to just the iframe's own window
+      // (window.location.href inside the iframe) — the top page's URL never
+      // changes, but the iframe's contentDocument gets replaced entirely
+      // once the new page finishes loading, ~200ms later.
+      await cursor.click({ selector: '#reload-btn', frame: '#test-iframe' });
+      let waitForError = null;
+      let found = null;
+      try {
+        found = await cursor.waitFor({ selector: '#new-content-btn', frame: '#test-iframe' }, { timeout: 3000 });
+      } catch (e) {
+        waitForError = e.message;
+      }
+      cursor.destroy();
+      return { foundId: found && found.id, waitForError };
+    });
+    check('waitFor correctly picks up the new iframe document after it reloads, not a stale one', result.foundId === 'new-content-btn');
+    if (result.waitForError) console.log('    (waitFor error was:', result.waitForError, ')');
+    await page.close();
+  }
+
+  console.log('=== REGRESSION CHECK: waitFor(state: "gone") also follows the iframe through its own reload ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4 });
+      await cursor.click({ selector: '#reload-btn', frame: '#test-iframe' });
+      let gone = false, appeared = false;
+      try {
+        await cursor.waitFor({ selector: '#iframe-btn', frame: '#test-iframe' }, { state: 'gone', timeout: 3000 });
+        gone = true;
+        const el = await cursor.waitFor({ selector: '#new-content-btn', frame: '#test-iframe' }, { timeout: 3000 });
+        appeared = !!el;
+      } catch { /* leave flags as-is, checked below */ }
+      cursor.destroy();
+      return { gone, appeared };
+    });
+    check('confirms the old iframe button is gone after the reload', result.gone === true);
+    check('and the new content is found afterward', result.appeared === true);
+    await page.close();
+  }
+
   console.log('=== a bad frame selector produces a clear error, not a silent no-op ===');
   {
     const page = await freshPage();

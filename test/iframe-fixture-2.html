@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>iframe fixture 2 (after reload)</title>
+</head>
+<body>
+  <button id="new-content-btn">New content button</button>
+  <script>
+    window.__newContentButtonClicked = false;
+    document.getElementById('new-content-btn').addEventListener('click', () => {
+      window.__newContentButtonClicked = true;
+    });
+  </script>
+</body>
+</html>

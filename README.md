@@ -2,7 +2,7 @@
 
 **English** · [中文](./README.zh-CN.md)
 
-**Version 0.12.0** · see [CHANGELOG.md](./CHANGELOG.md) for release history
+**Version 0.12.1** · see [CHANGELOG.md](./CHANGELOG.md) for release history
 
 A dependency-free visualization layer for automated webpage operations.
 
@@ -290,6 +290,17 @@ for the iframe's own position on the page — `getBoundingClientRect()` is
 relative to an element's own window, not the top page, so page-pilot
 translates iframe-relative coordinates into top-level ones before drawing
 anything.
+
+If a click inside an iframe causes that iframe to navigate or reload its
+own content (common for embedded payment widgets or multi-step forms — the
+top page's URL never changes, only the iframe's), `waitFor({ selector,
+frame }, ...)` correctly follows it through the reload instead of getting
+stuck polling the old, torn-down document:
+
+```js
+await cursor.click({ selector: '#next-step-btn', frame: '#payment-iframe' })
+await cursor.waitFor({ selector: '#step-2-marker', frame: '#payment-iframe' })
+```
 
 **Cross-origin iframes can't be targeted at all** — reading or resolving
 anything inside one is blocked by the browser itself (the same reason no
