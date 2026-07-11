@@ -15,7 +15,7 @@
   <button>Same Text</button>
   <button>Same Text</button>
   <button id="reload-iframe-from-outside">Reload iframe (from outside)</button>
-  <iframe id="test-iframe" src="/test/iframe-fixture.html" style="width:300px; height:200px; border:1px solid #ccc;"></iframe>
+  <iframe id="test-iframe" src="/test/core/iframe-fixture.html" style="width:300px; height:200px; border:1px solid #ccc;"></iframe>
 
   <div style="position:relative; height:60px;">
     <button id="covered-btn" style="position:absolute; left:10px; top:10px; width:100px; height:40px;">Behind modal</button>
@@ -76,7 +76,7 @@
   </script>
 
   <script type="module">
-    import { PagePilot } from '/page-pilot.js';
+    import { PagePilot } from '/src/page-pilot.js';
     window.PagePilot = PagePilot;
 
     // Simulates a real-world UI pattern (dropdown menus, tab switches,
@@ -93,7 +93,7 @@
     // submission. The top page's own URL never changes.
     document.getElementById('reload-iframe-from-outside').addEventListener('click', () => {
       setTimeout(() => {
-        document.getElementById('test-iframe').src = '/test/iframe-fixture-2.html';
+        document.getElementById('test-iframe').src = '/test/core/iframe-fixture-2.html';
       }, 200);
     });
 

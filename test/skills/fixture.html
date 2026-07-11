@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>page-pilot-skills test fixture</title>
+</head>
+<body>
+  <!-- has a <label for="..."> — should win over everything else -->
+  <label for="last-name">Last Name (label)</label>
+  <input id="last-name" name="lastName" placeholder="placeholder text" type="text" />
+
+  <!-- no <label>, has aria-label — should win over placeholder/name -->
+  <input id="first-name" aria-label="First Name (aria)" placeholder="placeholder text" name="firstName" type="text" />
+
+  <!-- no label/aria-label, has placeholder — should win over name -->
+  <input id="dept" placeholder="Department (placeholder)" name="department" type="text" />
+
+  <!-- only has a name attribute -->
+  <input id="notes-field" name="internalNotes" type="text" />
+
+  <!-- nothing at all — no label/aria-label/placeholder/name -->
+  <input id="mystery-field" type="text" />
+
+  <!-- wrapping <label> style -->
+  <label id="wrap-label" style="display:block;">
+    Wrapped Field Label
+    <input id="wrapped-input" type="text" />
+  </label>
+
+  <select id="country-select">
+    <option value="">--</option>
+    <option value="us">US</option>
+    <option value="jp">JP</option>
+  </select>
+
+  <input id="agree-checkbox" type="checkbox" />
+
+  <button id="delete-btn">Delete this record</button>
+  <button id="save-btn">Save</button>
+
+  <script type="module">
+    import * as Skills from '/src/page-pilot-skills.js';
+    window.Skills = Skills;
+  </script>
+</body>
+</html>

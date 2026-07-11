@@ -1,0 +1,342 @@
+/**
+ * Real-browser test suite for the toolkit layer (src/toolkit.js). Since
+ * everything now lives in one repo, toolkit.js's plain relative imports
+ * (./page-pilot.js etc.) resolve correctly against the real src/ files
+ * served by this same local test server — no CDN, no vendored copies to
+ * keep in sync. Simulates clicking the bookmarklet by evaluating the same
+ * code the bookmarklet's javascript: URL runs, and drives the resulting
+ * shadow-DOM panel exactly like a real user would (Playwright's locators
+ * pierce open shadow roots by default).
+ *
+ * Run: node test/toolkit/browser-test.mjs
+ */
+import http from 'node:http';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
+const sparticuzChromium = require('@sparticuz/chromium').default;
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, '../..');
+
+let pass = 0;
+let fail = 0;
+function check(name, cond) {
+  if (cond) { pass++; console.log('  ok -', name); }
+  else { fail++; console.error('  FAIL -', name); }
+}
+
+function startServer() {
+  const MIME = { '.html': 'text/html', '.js': 'text/javascript' };
+  const server = http.createServer(async (req, res) => {
+    try {
+      const urlNoQuery = req.url.split('?')[0];
+      const urlPath = urlNoQuery === '/' ? '/test/toolkit/fixture.html' : urlNoQuery;
+      const filePath = path.join(ROOT, urlPath);
+      const body = await readFile(filePath);
+      const ext = path.extname(filePath);
+      res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+      res.end(body);
+    } catch {
+      res.writeHead(404);
+      res.end('Not found');
+    }
+  });
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port }));
+  });
+}
+
+/** Exactly what the bookmarklet's javascript: URL does, minus the version
+ * pin (this test always loads whatever's currently in src/, not a tagged
+ * release). */
+function clickBookmarklet(base) {
+  return (async () => {
+    if (window.__pagePilotToolkitActive) return;
+    const s = document.createElement('script');
+    s.type = 'module';
+    s.src = `${base}/src/toolkit.js?t=${Date.now()}`;
+    document.documentElement.appendChild(s);
+  })();
+}
+
+async function main() {
+  const { server, port } = await startServer();
+  const base = `http://127.0.0.1:${port}`;
+
+  const executablePath = await sparticuzChromium.executablePath();
+  const launchArgs = sparticuzChromium.args.filter(
+    (a) => a !== '--single-process' && a !== '--no-zygote'
+  );
+  const browser = await chromium.launch({ executablePath, args: launchArgs, headless: true });
+  let intentionalClose = false;
+  browser.on('disconnected', () => {
+    if (!intentionalClose) console.error('[browser] disconnected unexpectedly');
+  });
+
+  async function freshPageWithPanel() {
+    const page = await browser.newPage();
+    await page.goto(`${base}/test/toolkit/fixture.html`);
+    await page.evaluate(clickBookmarklet, base);
+    await page.getByText('PagePilot').first().waitFor();
+    return page;
+  }
+
+  console.log('=== bookmarklet injects the panel ===');
+  {
+    const page = await freshPageWithPanel();
+    const panelVisible = await page.locator('text=PagePilot').first().isVisible();
+    check('panel is visible after "clicking" the bookmarklet', panelVisible);
+    await page.close();
+  }
+
+  console.log('=== clicking the bookmarklet twice does not stack two panels ===');
+  {
+    const page = await freshPageWithPanel();
+    await page.evaluate(clickBookmarklet, base);
+    await page.waitForTimeout(200);
+    const hostCount = await page.locator('#page-pilot-toolkit-host').count();
+    check('still exactly one panel host', hostCount === 1);
+    await page.close();
+  }
+
+  console.log('=== record -> stop -> run round trip through the panel UI ===');
+  {
+    const page = await freshPageWithPanel();
+    await page.locator('#record-btn').click();
+    await page.locator('#name-input').click();
+    await page.keyboard.type('Jane Cooper');
+    await page.locator('#submit-btn').click();
+    await page.locator('#stop-btn').click();
+    await page.locator('text=One-time use').click(); // dismiss the archive panel — this test isn't about saving
+
+    const stepsJson = await page.locator('textarea').inputValue();
+    const steps = JSON.parse(stepsJson);
+    check('recorded a type step for the input', steps.some((s) => s.type === 'type' && s.text === 'Jane Cooper'));
+    check('recorded a click step for the submit button', steps.some((s) => s.type === 'click' && s.target === '#submit-btn'));
+
+    // Reset the fixture, then Run the recorded steps back through the panel.
+    await page.fill('#name-input', '');
+    await page.locator('#run-btn').click();
+    await page.waitForFunction(() => document.getElementById('name-input').value === 'Jane Cooper', { timeout: 5000 });
+    check('Run button replays the recorded steps correctly', true);
+    await page.close();
+  }
+
+  console.log('=== pasting a hand-written steps array and running it works without recording first ===');
+  {
+    const page = await freshPageWithPanel();
+    const handWritten = JSON.stringify([{ type: 'click', target: '#submit-btn' }]);
+    await page.locator('textarea').fill(handWritten);
+    let clicked = false;
+    await page.exposeFunction('__markClicked', () => { clicked = true; });
+    await page.evaluate(() => {
+      window.__toolkitTestClicked = false;
+      document.getElementById('submit-btn').addEventListener('click', () => {
+        window.__toolkitTestClicked = true;
+        window.__markClicked();
+      });
+    });
+    await page.locator('#run-btn').click();
+    await page.waitForFunction(() => window.__toolkitTestClicked === true, { timeout: 5000 }).catch(() => {});
+    check('hand-written JSON runs without needing to record first', clicked);
+    await page.close();
+  }
+
+  console.log('=== password field is never recorded, even through the panel ===');
+  {
+    const page = await freshPageWithPanel();
+    await page.locator('#record-btn').click();
+    await page.locator('#password-field').click();
+    await page.keyboard.type('super-secret-123');
+    await page.locator('#submit-btn').click();
+    await page.locator('#stop-btn').click();
+    const stepsJson = await page.locator('textarea').inputValue();
+    check('the password text never appears in the recorded output', !stepsJson.includes('super-secret-123'));
+    await page.close();
+  }
+
+  console.log('=== Copy button writes the steps JSON to the clipboard ===');
+  {
+    const page = await freshPageWithPanel();
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.locator('textarea').fill('[{"type":"click","target":"#submit-btn"}]');
+    await page.locator('#copy-btn').click();
+    const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+    check('clipboard contains the steps JSON from the box', clipboardText.includes('#submit-btn'));
+    await page.close();
+  }
+
+  console.log('=== Close button removes the panel and allows reopening ===');
+  {
+    const page = await freshPageWithPanel();
+    await page.locator('#close-btn').click();
+    await page.waitForTimeout(200);
+    const hostCountAfterClose = await page.locator('#page-pilot-toolkit-host').count();
+    check('panel is removed after closing', hostCountAfterClose === 0);
+
+    await page.evaluate(clickBookmarklet, base);
+    await page.getByText('PagePilot').first().waitFor();
+    const reopened = await page.locator('#page-pilot-toolkit-host').count();
+    check('bookmarklet can be "clicked" again after closing to reopen the panel', reopened === 1);
+    await page.close();
+  }
+
+  console.log('=== Run button automatically handles an iframe reload with no manual wait step ===');
+  {
+    const page = await freshPageWithPanel();
+    const result = await page.evaluate(async () => {
+      const steps = [
+        { type: 'click', target: { selector: '#old-iframe-btn', frame: '#test-iframe' } },
+        { type: 'click', target: { selector: '#new-iframe-btn', frame: '#test-iframe' } },
+      ];
+      return steps;
+    });
+    await page.locator('textarea').fill(JSON.stringify(result));
+    await page.locator('#run-btn').click();
+    await page.waitForFunction(() => {
+      const iframe = document.getElementById('test-iframe');
+      return iframe.contentWindow && iframe.contentWindow.__newIframeButtonClicked === true;
+    }, { timeout: 5000 });
+    const clicked = await page.evaluate(() =>
+      document.getElementById('test-iframe').contentWindow.__newIframeButtonClicked === true
+    );
+    check('the panel\'s Run button waits for the iframe reload automatically and clicks the new button', clicked);
+    await page.close();
+  }
+
+  console.log('=== Run button refuses to click through a modal backdrop still covering the target ===');
+  {
+    const page = await freshPageWithPanel();
+    await page.evaluate(() => window.showModalBackdrop());
+    await page.locator('textarea').fill(JSON.stringify([
+      { type: 'click', target: '#covered-btn' },
+    ]));
+    await page.locator('#run-btn').click();
+    await page.waitForFunction(() => {
+      const status = document.querySelector('#page-pilot-toolkit-host');
+      return status; // just wait a beat for the run attempt to settle
+    });
+    await page.waitForTimeout(500);
+    const clicked = await page.evaluate(() => window.__coveredBtnClicked);
+    check('the covered button was NOT actually clicked — the panel refused to click through the modal', clicked === false);
+    await page.close();
+  }
+
+  console.log('=== SKILLS: stop -> save as skill -> appears in My Skills ===');
+  {
+    const page = await freshPageWithPanel();
+    await page.locator('#record-btn').click();
+    await page.locator('#name-input').click();
+    await page.keyboard.type('Jane Cooper');
+    await page.locator('#stop-btn').click();
+
+    // The archive panel should have detected "Full Name" as the suggested
+    // parameter name (from the <label for="name-input">) and pre-checked it.
+    await page.getByText('Full Name').first().waitFor();
+    await page.locator('#desc-input').fill('Fill in the name field');
+    await page.locator('#save-btn').click();
+
+    await page.getByText('Saved as a skill').first().waitFor();
+    await page.locator('#skills-section summary').click(); // expand "My Skills"
+    const skillVisible = await page.getByText('Fill in the name field').first().isVisible();
+    check('the saved skill appears in the My Skills list', skillVisible);
+    await page.close();
+  }
+
+  console.log('=== SKILLS: running a saved skill fills in NEW values, not the originally recorded ones ===');
+  {
+    const page = await freshPageWithPanel();
+    await page.locator('#record-btn').click();
+    await page.locator('#name-input').click();
+    await page.keyboard.type('Original Value');
+    await page.locator('#stop-btn').click();
+    await page.getByText('Full Name').first().waitFor();
+    await page.locator('#desc-input').fill('Type a name');
+    await page.locator('#save-btn').click();
+    await page.getByText('Saved as a skill').first().waitFor();
+
+    await page.fill('#name-input', ''); // reset the field before running the skill
+    await page.locator('#skills-section summary').click();
+    await page.locator('.run-skill-btn').first().click();
+    await page.locator('.param-form input[type="text"]').first().fill('A Brand New Value');
+    await page.locator('.confirm-run-btn').click();
+
+    await page.waitForFunction(() => document.getElementById('name-input').value === 'A Brand New Value', { timeout: 5000 });
+    check('running the saved skill with a new value types the NEW value, not "Original Value"', true);
+    await page.close();
+  }
+
+  console.log('=== SKILLS: deleting a skill removes it from the list ===');
+  {
+    const page = await freshPageWithPanel();
+    await page.locator('#record-btn').click();
+    await page.locator('#submit-btn').click();
+    await page.locator('#stop-btn').click();
+    await page.getByText('Save this as a reusable skill?').first().waitFor();
+    await page.locator('#desc-input').fill('Click submit');
+    await page.locator('#save-btn').click();
+    await page.getByText('Saved as a skill').first().waitFor();
+
+    await page.locator('#skills-section summary').click();
+    page.once('dialog', (d) => d.accept());
+    await page.locator('.delete-skill-btn').first().click();
+    await page.waitForTimeout(200);
+    const remainingSkillItems = await page.locator('.skill-item').count();
+    check('the skill is gone from the list after deleting', remainingSkillItems === 0);
+    await page.close();
+  }
+
+  console.log('=== SKILLS: a high-risk skill asks for confirmation before running ===');
+  {
+    const page = await freshPageWithPanel();
+    await page.locator('#record-btn').click();
+    await page.locator('#covered-btn').click(); // its id contains no risk word, but we'll force-check the box below
+    await page.locator('#stop-btn').click();
+    await page.getByText('Save this as a reusable skill?').first().waitFor();
+    await page.locator('#desc-input').fill('A risky action');
+    await page.locator('#high-risk-check').check(); // force it on for this test regardless of the heuristic
+    await page.locator('#save-btn').click();
+    await page.getByText('Saved as a skill').first().waitFor();
+
+    await page.locator('#skills-section summary').click();
+    await page.locator('.run-skill-btn').first().click();
+
+    let dialogMessage = null;
+    page.once('dialog', (d) => { dialogMessage = d.message(); d.dismiss(); }); // dismiss = "cancel", don't actually run it
+    await page.locator('.confirm-run-btn').click();
+    await page.waitForTimeout(200);
+    check('a confirmation dialog appears mentioning the high-risk skill', typeof dialogMessage === 'string' && dialogMessage.includes('high-risk'));
+    await page.close();
+  }
+
+  console.log('=== the panel itself is never recorded as part of a session ===');
+  {
+    const page = await freshPageWithPanel();
+    await page.locator('#record-btn').click();
+    await page.locator('#name-input').click();
+    await page.keyboard.type('hello');
+    await page.locator('#stop-btn').click();
+    const stepsJson = await page.locator('textarea').inputValue();
+    const steps = JSON.parse(stepsJson);
+    check('no step targets anything inside the toolkit panel itself',
+      !steps.some((s) => JSON.stringify(s).includes('page-pilot-toolkit')));
+    await page.close();
+  }
+
+  intentionalClose = true;
+  await browser.close();
+  server.close();
+
+  console.log(`\n${pass} passed, ${fail} failed`);
+  process.exit(fail > 0 ? 1 : 0);
+}
+
+main().catch((err) => {
+  console.error('Test runner crashed:', err);
+  process.exit(1);
+});

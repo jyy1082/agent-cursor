@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>iframe fixture</title>
+</head>
+<body>
+  <input id="iframe-input" type="text" />
+  <button id="iframe-btn">Iframe button</button>
+  <script>
+    window.__iframeButtonClicked = false;
+    document.getElementById('iframe-btn').addEventListener('click', () => {
+      window.__iframeButtonClicked = true;
+    });
+  </script>
+</body>
+</html>

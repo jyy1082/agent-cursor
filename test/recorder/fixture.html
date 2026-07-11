@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>page-pilot-recorder test fixture</title>
+<style>body { user-select: none; }</style>
+</head>
+<body>
+  <button id="submit-btn">Submit</button>
+  <button id="stop-btn" data-ppr-ignore>Stop</button>
+
+  <input id="name-input" type="text" />
+  <textarea id="bio"></textarea>
+
+  <select id="country-select">
+    <option value="">--</option>
+    <option value="us">US</option>
+    <option value="jp">JP</option>
+  </select>
+
+  <input id="agree-checkbox" type="checkbox" />
+  <input id="password-field" type="password" />
+  <button id="dup-btn">First duplicate</button>
+  <button id="dup-btn">Second duplicate</button>
+  <button id="dup-btn">Third duplicate</button>
+  <input id="radio-a" type="radio" name="grp" value="a" />
+  <input id="radio-b" type="radio" name="grp" value="b" />
+
+  <div id="scroll-box" style="height:100px; overflow-y:auto;">
+    <div style="height:1000px;">tall content</div>
+  </div>
+
+  <button id="plan-trigger">Choose a plan</button>
+  <div id="plan-menu" style="display:none;">
+    <div class="menu-opt" data-value="basic">Basic</div>
+    <div class="menu-opt" data-value="pro">Pro</div>
+  </div>
+
+  <div id="drag-source" style="position:absolute; left:20px; top:400px; width:60px; height:30px; background:#378ADD;">Drag</div>
+  <div id="drag-target" style="position:absolute; left:300px; top:400px; width:100px; height:60px; border:2px dashed #999;">Drop here</div>
+
+  <button>No Identifiers Button</button>
+  <button>Repeated Label</button>
+  <button>Repeated Label</button>
+  <a href="javascript:void(0)">A Plain Link</a>
+
+  <iframe id="test-iframe" src="/test/recorder/iframe-fixture.html" style="width:300px; height:150px; border:1px solid #ccc;"></iframe>
+
+  <script type="module">
+    import { PagePilotRecorder } from '/src/page-pilot-recorder.js';
+    window.__recorder = new PagePilotRecorder({ ui: false });
+    document.getElementById('stop-btn').addEventListener('click', () => {
+      window.__lastSteps = window.__recorder.stop();
+    });
+
+    window.__clickedTexts = [];
+    document.querySelectorAll('button, a').forEach((el) => {
+      if (el.id) return; // only track the plain no-id ones added for text-matching tests
+      el.addEventListener('click', () => window.__clickedTexts.push(el.textContent.trim()));
+    });
+
+    const planTrigger = document.getElementById('plan-trigger');
+    const planMenu = document.getElementById('plan-menu');
+    planTrigger.addEventListener('click', () => {
+      planMenu.style.display = planMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    document.querySelectorAll('.menu-opt').forEach((opt) => {
+      opt.addEventListener('click', () => {
+        planTrigger.textContent = opt.textContent;
+        planMenu.style.display = 'none';
+      });
+    });
+
+    const dragSource = document.getElementById('drag-source');
+    const dragTarget = document.getElementById('drag-target');
+    let dragging = false, offsetX = 0, offsetY = 0;
+    dragSource.addEventListener('mousedown', (e) => {
+      dragging = true;
+      offsetX = e.clientX - dragSource.getBoundingClientRect().left;
+      offsetY = e.clientY - dragSource.getBoundingClientRect().top;
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      dragSource.style.left = (e.clientX - offsetX) + 'px';
+      dragSource.style.top = (e.clientY - offsetY) + 'px';
+    });
+    document.addEventListener('mouseup', (e) => {
+      if (!dragging) return;
+      dragging = false;
+      const tRect = dragTarget.getBoundingClientRect();
+      if (e.clientX >= tRect.left && e.clientX <= tRect.right && e.clientY >= tRect.top && e.clientY <= tRect.bottom) {
+        dragTarget.textContent = 'Dropped!';
+      }
+    });
+  </script>
+</body>
+</html>

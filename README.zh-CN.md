@@ -1,376 +1,250 @@
 # page-pilot
 
-[English](./README.md) · **中文**
+**中文** · [English](./README.md)
 
-**版本 0.17.0** · 完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)
+**版本 1.0.0** · 完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)
 
-一个零依赖的"自动化网页操作可视化层"。
+一套不依赖任何第三方库、用于"可视化"浏览器自动化的工具集，分四层，全部放在这一个仓库里：
 
-它**不负责决定**要点什么、要输入什么——那是你自己的自动化逻辑（你自己的选择器，或者随便什么驱动你自动化的东西）。这个库只做一件事：把一个虚拟光标动画式地移动到目标位置，播放点击/输入的反馈效果，给刚刚操作过的元素画一个高亮边框，然后把真正的 DOM 操作交给你自己的执行逻辑去完成。
+| 层 | 文件 | 做什么 |
+|---|---|---|
+| **核心** | `src/page-pilot.js` | 带着能看见的动画光标、点击涟漪、高亮框去回放一组步骤——让人一眼就能看清正在做什么、做在哪 |
+| **录制器** | `src/page-pilot-recorder.js` | 把真实的点击/打字/选择，转换成核心引擎能直接理解的步骤数组 |
+| **技能** | `src/page-pilot-skills.js` | 把一次录制变成可复用、命名好的"技能"——具体的值变成命名好的参数，以后可以换着用 |
+| **工具包** | `src/toolkit.js` | 一个书签：拖一个链接到收藏夹栏，在任意网站点一下就能弹出录制/运行面板——不需要安装，不需要扩展 |
 
-设计初衷是给任何自动化网页操作加一层"这里正在发生什么、发生在哪里"的可视化反馈,不需要引入任何 UI 框架或动画库。
+每一层只依赖表格里排在它前面的层——核心引擎完全没有依赖，录制器只是生成核心引擎能理解的步骤，技能层除了 DOM 之外什么都不依赖，工具包把前三层拼在一起、套一层界面。每一层都可以单独拿出来用。
 
-## Demo
+## 快速开始——完全不用写代码
 
-**[打开在线 demo](https://jyy1082.github.io/page-pilot/demo.html)** —— 点"Run full demo"，看这个库驱动一个真实表单完成一整套操作：打字、原生下拉选择、自定义下拉菜单、勾选框、滚动容器、悬停提示、按键盘 Escape 关闭菜单、拖拽、等待异步加载的内容，最后点击提交——每个碰过的字段都会留下高亮边框。
+**[打开安装页面](https://jyy1082.github.io/page-pilot/demo/install.html)**，把上面那个按钮拖到收藏夹栏。在任意网站点一下，就能录制一段点击/打字操作、存成可复用的技能，或者直接粘贴一段步骤 JSON 运行——具体见下面"工具包"部分。
 
-也可以直接把仓库 clone 下来，本地打开 [`demo.html`](./demo.html)——不需要任何构建步骤，纯 ES module。
-
-## 功能
-
-- 动画光标：每次操作前先移动到目标位置
-- 点击涟漪和按下反馈
-- 打字动画：支持原生输入框/textarea（走原生 setter，所以在 React/Vue 受控输入框上也能正常触发），也支持 `contenteditable` 元素（富文本编辑器、自定义 div 输入框）
-- 原生 `<select>` 支持，包括多选
-- 复选框/单选框/开关支持（包括基于 ARIA 的自定义开关组件），只有状态真的需要改变时才会点击
-- 自定义下拉菜单（div/li 拼的）支持，通过 `chooseOption`
-- 键盘操作：`pressKey()` 支持 Enter/Escape/方向键等，可带修饰键
-- 悬停/取消悬停：用于提示气泡、悬停触发的菜单
-- 拖拽：支持基于鼠标事件实现的排序列表、滑块、自定义拖拽组件
-- `waitFor()`：轮询等待异步加载的内容，而不是猜一个固定延时
-- 页面和容器滚动，带滚动稳定检测，可选方向指示
-- 可选的整页呼吸边框（或者用 `pageGlowTarget` 指定某个容器），只要有操作在跑就会亮起——清楚地告诉观看者"系统正在自己操作"。默认会屏蔽这个区域内的真实鼠标点击（`blockInteraction`，可以用 `pointerBlockAllowlist` 设置例外），还可以配一个状态提示文字（`pageGlowMessage`），跟边框同步出现、同步消失
-- 支持同源 iframe——用 `{ selector, frame }` 就能操作 iframe 里面的元素，光标/涟漪/高亮这些视觉效果会自动换算坐标
-- 每个被操作过的元素都会留下常驻高亮边框（默认开启，可以主动清除或者用 `highlightDuration` 设置自动淡出），滚动/窗口变化时会自动跟随重新定位
-- 所有操作都走队列，动画和操作之间不会互相打架
-- 遵循 `prefers-reduced-motion`（系统减少动态效果设置）
-- 零依赖，体积约 5KB
-
-## 安装
+## 快速开始——当作库来用
 
 ```bash
 npm install page-pilot
 ```
 
-或者直接把 `page-pilot.js` 复制到你的项目里。
+```js
+import { PagePilot } from 'page-pilot'
+import { PagePilotRecorder } from 'page-pilot/recorder'
+import { detectParameters, saveSkill, fillSkillParameters } from 'page-pilot/skills'
+
+const recorder = new PagePilotRecorder()
+recorder.start()
+// ...正常操作页面...
+const steps = recorder.stop()
+
+const cursor = new PagePilot()
+await cursor.run(steps) // 带着能看见的光标回放
+```
+
+---
+
+# 核心：page-pilot（回放）
+
+带着能看见的光标、点击动画、持续显示的高亮框去回放一组步骤。它**不会**自己决定点什么——只负责把你（或者录制器、或者技能层）已经确定好要做的动作，做出动画并真正执行，自动化的实际逻辑始终在你手里。
 
 ## 用法
 
 ```js
 import { PagePilot } from 'page-pilot'
 
-const cursor = new PagePilot({
-  onExecuteClick: (el) => el.click(),
-})
-
+const cursor = new PagePilot()
 await cursor.click(document.querySelector('#submit'))
 await cursor.type(document.querySelector('#name'), 'Acme Corp')
 await cursor.select(document.querySelector('#country'), 'US')
 await cursor.check(document.querySelector('#agree'), true)
 await cursor.chooseOption('#menu-trigger', '.menu-item[data-value="pro"]')
-await cursor.scroll(null, { amount: 600 })       // 整个页面往下滚 600px
-await cursor.scroll('#panel', { to: 'bottom' })  // 把某个容器滚到底部
-
-cursor.clearHighlight('#name')  // 移除一个常驻高亮
-cursor.clearHighlights()        // 移除全部高亮
+await cursor.pressKey('#search', 'Enter')
+await cursor.hover('#info-icon')
+await cursor.unhover()
+await cursor.dragTo('#item-1', '#drop-zone')
+await cursor.waitFor('#async-result', { timeout: 8000 })
+await cursor.waitFor('#save-btn', { state: 'gone', timeout: 3000 }) // 等一个东西消失，而不是出现
+await cursor.waitForFrameReload('#payment-iframe') // 等一个同源 iframe 重新加载
 cursor.destroy()
 ```
 
-### "系统正在操作"呼吸边框
-
-```js
-const cursor = new PagePilot({ showPageGlow: true })
-// 现在只要有 click/type/select 等任何操作在跑，整个视口就会出现一圈呼吸的彩色边框，
-// 队列空闲下来之后会自动淡出。
-```
-
-指定某个容器而不是包住整个页面：
-
-```js
-const cursor = new PagePilot({ showPageGlow: true, pageGlowTarget: '#chat-panel' })
-// 边框会紧贴 #chat-panel 当前的位置和大小，而不是包住整个视口，
-// 页面滚动或者容器大小变化时也会跟着自动对齐。
-```
-
-默认情况下,呼吸边框亮着的时候,这个区域内的**真实鼠标点击会被屏蔽**——这样正在观看的人就不会不小心干扰到正在进行的自动化操作。还可以配一个状态提示文字,跟边框同步出现、同步消失:
-
-```js
-const cursor = new PagePilot({
-  showPageGlow: true,
-  pageGlowTarget: '#demo-card',
-  pageGlowMessage: '正在自动化执行，请稍等……',
-  // 即使 Stop 按钮在被屏蔽的区域里面，也让它保持可以点击：
-  pointerBlockAllowlist: ['#stop-btn'],
-})
-
-// 或者完全不屏蔽点击，只保留视觉上的呼吸边框：
-const cursor2 = new PagePilot({ showPageGlow: true, blockInteraction: false })
-```
-
-呼吸边框亮着的时候，边框范围内的真实鼠标输入默认会被拦截（`blockInteraction: true`）——
-这样观看的人没法在自动化操作的时候手动点/输入干扰进去，边框一淡出就会立刻自动解除拦截：
-
-```js
-const cursor = new PagePilot({ showPageGlow: true, blockInteraction: false })
-// 即使呼吸边框亮着，真实的点击/输入依然能正常触达页面。
-```
-
-在呼吸边框顶部加一行小字提示：
-
-```js
-const cursor = new PagePilot({
-  showPageGlow: true,
-  pageGlowMessage: '正在自动化执行，请稍等……',
-})
-// 只在有操作跑的时候显示，跟呼吸边框一起自动消失。
-```
-
-### 批量执行步骤
+或者一次跑完整段录制/手写的步骤：
 
 ```js
 await cursor.run([
-  { type: 'type', target: '#email', text: 'a@b.com' },
-  { type: 'select', target: '#country', value: 'US' },
-  { type: 'check', target: '#agree-terms', checked: true },
-  { type: 'chooseOption', target: '#plan-trigger', option: '.plan-option[data-value="pro"]' },
-  { type: 'scroll', target: '#panel', options: { to: 'bottom' } },
   { type: 'click', target: '#submit' },
+  { type: 'type', target: '#name', text: 'Acme Corp' },
 ])
 ```
 
-### 中途停止
+## target 的几种形式
+
+`target` 可以是 `Element`、CSS 选择器字符串，或者一个对象，组合了 `selector` 和：
+- **`frame`** —— 同源 iframe 里的元素（一个 iframe 选择器，多层嵌套是数组）。跨域 iframe 完全没法操作——这是浏览器本身的安全限制，绕不过去。
+- **`index`** —— 选择器本身匹配到不止一个的时候，指定第几个（真实网站上重复 `id` 相当常见）。
+- **`text`** —— 按钮/链接按可见文字匹配（原生 CSS 没有"按文字匹配"这种选择器，这个字段补上这个能力——文字往往是按钮最容易被人认出来的标识）。
+
+这三者可以自由组合，也都能跟 `frame` 一起用。这些正是 page-pilot-recorder 会自动生成的格式，录制出来的步骤不需要手动调整就能直接回放。
+
+## 弹窗和蒙版
+
+因为点击是直接派发给已经解析好的元素，而不是通过浏览器正常的"命中测试"去找的，这个库有可能"穿透"过真实鼠标根本碰不到的东西——最常见的就是一个模态弹窗的蒙版还盖在页面上面。把 `verifyClickable` 设成 `true`，每次点击前都会检查一下，如果被挡住了会直接报一个清楚的错误，说明是被什么挡住的，而不是悄悄穿透过去。提供 `onObstruction: async (blockingEl, targetEl) => boolean` 可以自己处理这种情况（比如把弹窗关掉），而不是直接报错——返回 `true` 表示你已经处理好了（这个回调里要用原生的 `element.click()`，不要用 `cursor.click()`，否则会导致排队队列死锁）。
+
+## iframe 重新加载
+
+如果一次点击导致某个同源 iframe 重新加载了自己的内容（内嵌支付组件、多步骤表单很常见这种情况），`waitForFrameReload(selector)` 会等它的文档对象真的换了一份，完全不需要知道新内容长什么样：
 
 ```js
-const runPromise = cursor.run([ /* 一长串步骤 */ ])
-
-stopButton.addEventListener('click', () => cursor.stop())
-
-await runPromise // 即使被 stop() 打断，也是正常 resolve，不会抛错
+await cursor.click('#refresh-iframe-btn')
+await cursor.waitForFrameReload('#payment-iframe')
+await cursor.click({ selector: '#new-btn', frame: '#payment-iframe' })
 ```
 
-### 键盘、悬停、拖拽、等待异步内容
+或者把 `autoWaitForIframeReload` 设成 `true`，让每次点击都自动做这个检测，不需要手动加等待步骤——适合那些你没法手动改步骤内容的场景（录制/粘贴进来的 JSON、保存好的技能）。
+
+## 配置项（默认值）
 
 ```js
-await cursor.pressKey('#search', 'Enter')
-await cursor.pressKey('#dropdown', 'ArrowDown')
-await cursor.pressKey(null, 'Escape') // 发给当前拥有焦点的元素
-
-await cursor.hover('#info-icon')   // 触发 mouseenter/mouseover（提示气泡、悬停菜单）
-await cursor.unhover()             // 触发 mouseleave/mouseout
-
-await cursor.dragTo('#item-1', '#drop-zone')              // 元素拖到元素
-await cursor.dragTo('#slider-handle', { x: 400, y: 120 }) // 元素拖到坐标点
-
-await cursor.waitFor('#async-result', { timeout: 8000 }) // 轮询等待，而不是猜一个固定延时
-
-// 等一个元素消失,而不是等它出现——用在"下一步操作依赖某个即将被替换的旧元素真的已经没了"这种场景
-// 之前非常有用（很多页面不整页跳转、只是异步更新内容，如果不等旧元素真的消失，
-// 下一步很可能在更新完成之前就跑了，点到了那个还没被替换掉的旧元素上）：
-await cursor.click('#save-btn')
-await cursor.waitFor('#save-btn', { state: 'gone', timeout: 3000 })
-await cursor.waitFor('#saved-confirmation')
-```
-
-### 接入你自己的执行逻辑
-
-如果你的自动化已经有自己的一套点击/输入实现方式（自定义 DOM 控制器、浏览器扩展桥接、或者别的什么），把这两个 hook 指向你自己的逻辑就行，不用默认的 `el.click()` / 原生 setter 输入：
-
-```js
-const cursor = new PagePilot({
-  onExecuteClick: (el) => myController.clickElement(indexOf(el)),
-  onExecuteInput: (el, text) => myController.inputText(indexOf(el), text),
+new PagePilot({
+  color: '#378ADD', size: 16, moveDuration: 480, clickPause: 260, typeDelay: 45,
+  respectReducedMotion: true, zIndex: 999999,
+  showCursorDot: true, showScrollIndicator: false, showPageGlow: false,
+  pageGlowColor: null, pageGlowWidth: 4, pageGlowTarget: null, pageGlowRadius: 0,
+  pageGlowMessage: null,          // 显示在呼吸边框区域上方的状态文字
+  blockInteraction: true,         // 呼吸边框显示期间，阻止真实鼠标点击这块区域
+  pointerBlockAllowlist: [],      // 即使在阻止期间也保持可点击的选择器
+  highlightEnabled: true, highlightColor: null, highlightDuration: null,
+  autoWaitForIframeReload: false, autoIframeReloadGrace: 400, autoIframeReloadMaxWait: 4000,
+  verifyClickable: false, onObstruction: null,
+  onExecuteClick: (el) => { /* 派发 pointerdown/mousedown/pointerup/mouseup/click 序列 */ },
+  onExecuteInput: (el, text) => { /* 原生 setter 输入 */ },
+  onBeforeStep: (step) => {}, onAfterStep: (step) => {},
 })
 ```
+
+## 已知限制
+
+- 原生 `<select>` 下拉菜单、原生日期/颜色选择器——弹出的面板是操作系统/浏览器自己绘制的，不在 DOM 里，所以只有触发点击这个动作能做动画。
+- 文件上传框（`<input type="file">`）出于安全原因，任何浏览器的任何脚本都设置不了。
+- `dragTo()` 覆盖的是基于鼠标事件的拖拽（自定义排序列表、滑块）——不是原生 HTML5 拖放（`draggable="true"` + `DataTransfer`），大部分浏览器这个需要真实的用户手势。
+- 派发的每个事件都是真实的，但 `isTrusted` 都是 `false`——没有任何页面级 JS 能改变这一点。大部分网站不检查 `event.isTrusted`；少数网站（专门做了反自动化检测的）会检查，会悄悄忽略掉。
+
+---
+
+# 录制器：page-pilot-recorder
+
+把真实的点击/打字/选择转换成核心引擎能理解的步骤数组。只监听真实的（`isTrusted`）DOM 事件，自己从不派发任何东西——跟核心引擎正好是镜像关系。
+
+## 用法
+
+```js
+import { PagePilotRecorder } from 'page-pilot/recorder'
+
+const recorder = new PagePilotRecorder({ ui: true }) // 浮动的开始/停止/复制面板
+recorder.start()
+// ...正常操作页面...
+const steps = recorder.stop()
+```
+
+## 会录制什么
+
+点击、打字（缓冲到失焦才生成一条，不是按键就录——`<textarea>`/`contenteditable` 里的 Enter 就是普通换行，不是什么快捷键，所以多行文字不会在第一行就被截断）、原生 `<select>`（单选/多选）、复选框/单选框（作为 `check` 步骤）、非字符按键和组合键快捷键（Ctrl+A 之类，作为 `pressKey`）、防抖处理过的窗口/容器滚动、超过距离阈值的拖拽手势（会跳过看起来像是选文字的拖拽）、以及打开一个自定义下拉菜单加选一个选项（通过 `MutationObserver` 自动合并成一条 `chooseOption` 步骤，而不是两条独立的点击）。
+
+**任何网站、任何情况下都不会录制：** 密码框——这是硬性规则，不能配置。
+
+**不会自动录制、需要人自己决定的：** `waitFor()` 步骤（后续步骤上的 `gapBefore` 字段会提示"这里停顿了一下"，可能当时在等什么异步加载）和悬停手势（太难跟"鼠标不小心划过去"可靠区分开）。
+
+## 选择器生成策略
+
+每个 target 都是按这个优先级依次尝试：`id`（重复的话按位置区分开来——真实网站上很常见）、`data-testid`/`-cy`/`-test`/`-qa`、其他任意 `data-*` 属性、`aria-label`、`name`、按钮/链接的可见文字内容（重复的话同样按位置区分）、非工具类的 class 名，最后兜底用 `nth-of-type` 结构路径。走到了位置区分或者结构路径兜底的步骤，会带上 `fragile: true` 标记。
+
+同源 iframe 里的操作，会自动带上 `frame` 字段。
+
+## 配置项（默认值）
+
+```js
+new PagePilotRecorder({
+  ui: true, scrollSettleDelay: 250,
+  mergeChooseOption: true, chooseOptionMergeWindow: 4000,
+  recordDragTo: true, dragThreshold: 10,
+  waitHintThreshold: 1200,
+  recordIframes: true,
+  onStep: null, onWaitHint: null,
+})
+```
+
+---
+
+# 技能：page-pilot-skills
+
+把录制到的步骤数组转换成一个可复用的"技能"：一句简短描述、一份命名好的参数列表，以及把具体值替换成 `{{参数名}}` 占位符之后的原始步骤——这样同一段录制内容，换个值就能重新跑一遍。**这里面完全没有 AI**——哪些值该变成参数、叫什么名字、要不要保存，全部是人自己决定和确认；以后要用的时候，也是人自己提供真实的值。检索（根据一句新指令找到对应技能）和自然语言提取参数值，是另外一层、以后再做的事，不属于这一层。
+
+## 用法
+
+```js
+import { showArchivePanel, listSkills, fillSkillParameters } from 'page-pilot/skills'
+
+const steps = recorder.stop()
+const skill = await showArchivePanel(steps) // 选"仅本次使用"返回 null；否则自动保存好
+
+// 以后，用新的值跑一遍保存好的技能：
+const saved = listSkills()[0]
+const filledSteps = fillSkillParameters(saved, { '姓氏': 'Tanaka', '部门': 'Engineering' })
+await cursor.run(filledSteps)
+```
+
+## 什么会被识别成候选参数
+
+每个 `type` 步骤的 `text`、`select` 步骤的 `value`、`check` 步骤的 `checked` 状态，每一个都会按这个顺序尝试给出建议名字：`<label for="...">`、包裹它的 `<label>`、`aria-label`、`placeholder`、最后是 `name`。`select` 的值默认建议勾选；`check` 的状态和超过 200 字符的值默认建议不勾选（通常是流程里固定不变的一部分，或者是自由文本，不太值得重新做成参数）。
+
+## 存下来的是什么，故意不存的又是什么
+
+**示例值永远不会被存下来**——只存参数的**名字**，哪怕草稿对象里顺带带了一个示例值。技能按域名区分（默认用 `location.hostname`）。`fragile` 和 `highRisk`（对照常见危险操作关键词检测——删除/提交/支付/转账，中英文都覆盖——只是预先勾选面板里的复选框，不会强制执行什么）会自动设置，但都不会阻止保存。
 
 ## API
 
 | 方法 | 说明 |
 |---|---|
-| `click(target, label?)` | 移动过去并点击一个元素 |
-| `type(target, text, label?)` | 移动过去、聚焦、然后打字到输入框/textarea/contenteditable 元素 |
-| `select(target, value, label?)` | 设置原生 `<select>` 的值（传数组 = 多选） |
-| `check(target, checked, label?)` | 把复选框、单选框或 ARIA 开关（`role="switch"`/`aria-checked`）设为指定的勾选状态 |
-| `chooseOption(trigger, option, options?)` | 打开一个自定义下拉菜单并点击其中一个选项 |
-| `scroll(target, options?)` | 滚动窗口或某个容器（`{ amount }` 或 `{ to: 'top'\|'bottom' }`） |
-| `pressKey(target, key, options?)` | 发送一次按键（Enter、Escape、方向键等），可带修饰键 |
-| `hover(target, label?)` | 移动到目标并派发悬停事件（mouseenter/mouseover） |
-| `unhover(label?)` | 离开当前通过 `hover()` 悬停的元素 |
-| `dragTo(source, target, options?)` | 从一个来源拖到目标元素或者一个 `{x, y}` 坐标点 |
-| `waitFor(target, options?)` | 轮询直到某个选择器/条件匹配到可见元素（或者，配合 `{ state: 'gone' }`，等到它消失），而不是固定延时等待 |
-| `waitForFrameReload(frameSelector, options?)` | 等一个同源 iframe 自己的内容真的重新加载/跳转了（判断依据是它的文档对象身份变了）——不需要知道新内容长什么样 |
-| `moveTo(target)` | 只移动光标，不执行操作 |
-| `step(target, action, label?)` | 运行自定义逻辑，同时仍然获得光标动画效果 |
-| `run(steps)` | 按顺序执行一组步骤（以上任意类型），执行完自动隐藏光标 |
-| `stop()` | 立刻中断正在执行的操作，并丢弃所有还在排队的后续步骤——实例之后仍可正常使用，不需要重置 |
-| `hideCursor()` | 隐藏光标圆点（比如一连串单独调用都做完之后） |
-| `showCursor()` | 重新显示光标圆点（下一次 move/click/type 等操作时也会自动重新显示） |
-| `clearHighlight(target)` | 移除某一个元素的高亮框 |
-| `clearHighlights()` | 移除所有当前存在的高亮框 |
-| `destroy()` | 移除光标、所有高亮框，以及事件监听器 |
+| `detectParameters(steps)` | 扫描步骤数组，返回带建议名字的候选参数 |
+| `hasFragileSteps(steps)` / `isHighRisk(steps)` | 启发式检查，用来预先填充面板里的提示 |
+| `buildSkillDraft(description, steps, acceptedParams)` | 构建一个替换好占位符的草稿 |
+| `saveSkill` / `listSkills` / `getSkill` / `deleteSkill` | 基于 `localStorage`、按域名区分的存储 |
+| `fillSkillParameters(skill, values)` | 把真实值替换回去，直接可以交给 `cursor.run()` |
+| `showArchivePanel(steps, options?)` | 完整的确认界面；自己负责保存，返回保存好的记录或者 `null` |
 
-`target` 可以是一个 `Element`、CSS 选择器字符串，或者是一个对象，组合了 `selector` 和 `frame`（同源 iframe 里的元素，见下面的"iframe 支持"）、`index`（区分一个本身不唯一的选择器匹配到的第几个，见下面的"重复 id"）、和/或 `text`（按钮/链接按可见文字匹配，见下面的"按文字匹配"）——这些都是 [page-pilot-recorder](https://github.com/jyy1082/page-pilot-recorder) 会自动生成的格式，录制出来的步骤不需要手动调整就能直接回放。
+---
 
-## 弹窗和蒙版
+# 工具包：书签
 
-因为点击是直接派发给已经解析好的元素，而不是通过浏览器在某个屏幕位置的正常"命中测试"去找的，这个库有可能"穿透"过真实鼠标根本碰不到的东西——最常见的情况就是：一个模态弹窗的蒙版还盖在页面上面。如果上一步其实没有真的把弹窗关掉（它自己的关闭按钮没起到预期效果、等待的某个网络请求一直没返回，等等），**下一步**默认还是会正常穿过这层蒙版去操作背后的内容——而真人用鼠标是物理上碰不到的。
+把前面三层拼在一起，套一个浮动面板，通过书签注入——安装链接见最上面的"快速开始"。
 
-把 `verifyClickable` 设成 `true`，每次点击之前都会先检查一下：目标元素是不是真的是它自己那个位置上最上面的东西（等效于真实鼠标点击会做的判断），如果被别的东西挡住了，会直接报一个清楚的错误，说明是被什么挡住的，而不是悄悄穿透过去：
+## 做了什么
 
-```js
-const cursor = new PagePilot({ verifyClickable: true })
-await cursor.click('#save-btn')
-// Error: PagePilot: target is covered by another element (.modal-backdrop)
-// and a real mouse couldn't reach it — possibly a modal/overlay that's
-// still open.
-```
+- **Start recording** / **Stop** —— 通过录制器层录制；Stop 之后还会弹出技能归档面板（存成可复用的技能，还是只用这一次——不管选哪个，下面的 JSON 框始终保留**这次录制的原始值**，所以 Run/Copy 立刻就能用）。
+- **我的技能** —— 当前网站下保存过的所有技能。**Run** 弹一个小表单，每个参数一个输入框；高风险技能运行前多一步确认；**Delete** 删除一个，删之前会先确认。
+- **Run** / **Copy** —— 跑框里的 JSON（录制的、粘贴的、手写的都行——不一定要先录制），或者复制出去。
+- 自动处理"某一步导致某个同源 iframe 重新加载"这种情况（`autoWaitForIframeReload: true`），并且拒绝穿透还开着的弹窗蒙版去点背后的东西（`verifyClickable: true`）——这两个在这里都是默认开启的，因为在这个面板里没有实际可行的方式去手动给录制/粘贴进来的 JSON 加等待步骤。
 
-按钮内部嵌套的图标或者文字节点不会触发这个报错（那本来就"是"这个按钮的一部分，不是挡住它的东西）——只有真正独立的、盖在上面的元素才算。默认关闭，这样不需要这个检查的现有脚本行为完全不变；对于那些"点错东西"比"直接停下来报错"后果更严重的流程，建议开启它。
+## 安全性说明
 
-下拉菜单（不管是用 `chooseOption()`，还是两次普通的 `click()`）配合这个检查完全没问题——菜单打开之后，菜单自己的选项就是它那个位置上最上面的东西，这正是这个检查要判断的条件。这也包括很多组件库常见的"点击外部关闭菜单"实现方式（打开菜单的同时，加一个透明的全屏检测层）：只要这个检测层的层级（z-index）比菜单本身低（不然真人也点不到菜单选项，这本来就是正确实现下拉菜单的前提），就永远不会被误判成"挡住了菜单选项的东西"。
+- 你在哪个页面上运行这个书签，它就拥有你浏览器会话在那个页面上本来就有的访问权限——跟任何书签或者用户脚本一样。
+- 面板本身渲染在一个封闭的 Shadow DOM 里，宿主页面的 CSS 弄不乱它，它自己的样式也不会泄漏出去影响宿主页面。
+- 保存的技能存在那个网站自己的 `localStorage` 里——清空浏览器里这个网站的数据，技能也会一起被清掉。
+- 书签的地址锁定了这个仓库的一个具体版本号（见 `demo/install.html`）——想更新就要重新拖一次书签，已经装好的书签会一直保持原来的行为，直到你自己选择更新。
+- 有些网站的 Content-Security-Policy 会完全拦截这次注入的外部 `<script>`——出现这种情况书签会弹一个提示。这是网站自己的安全设置，书签没有任何特权能绕过去（浏览器扩展可以）。
 
-如果你不想报错、而是想自己处理这种被挡住的情况——把挡住的东西关掉，然后继续——可以提供 `onObstruction`。它会带着"挡住的元素"和"你原本想点的目标元素"被调用；返回 `true` 表示你已经处理好了（这次点击会重试一次，只有真的还被挡住才会报错），返回 `false` 或者什么都不返回，就还是走默认的报错行为：
-
-```js
-const cursor = new PagePilot({
-  verifyClickable: true,
-  onObstruction: async (blockingEl, targetEl) => {
-    const closeBtn = blockingEl.querySelector('.modal-close');
-    if (closeBtn) {
-      closeBtn.click(); // 用原生 DOM 调用——见下面的说明
-      return true;
-    }
-    return false; // 不认识这种情况，还是走默认报错
-  },
-})
-```
-
-**这个回调里要用原生 DOM 调用（`element.click()`），不要用 `cursor.click()`。** 这个回调是在发现"被挡住"的那次点击步骤执行**过程中**跑的——这次点击本身还在排队队列里、正等着这个回调跑完，如果回调里又反过来调用 `cursor` 自己的排队方法，会造成死锁（新排的任务得等当前这个先跑完，但当前这个又在等新任务跑完）。
-
-## 重复 id
-
-真实网站（尤其是老旧或者比较"糙"的网站）经常出现同一个 `id` 被用在好几个元素上——不合规的 HTML，但浏览器不会阻止。`{ selector, index }` 用来指定"匹配到的第几个"，而不是默认用第一个：
-
-```js
-await cursor.click({ selector: '[id="row-action"]', index: 2 }) // 第三个（0 开始数）
-```
-
-这是 page-pilot-recorder 发现某个录制到的元素的 `id` 并不能唯一确定它时，自动生成的格式——通常你不需要自己手写这个，但如果你自己拼步骤，也可以这么用。
-
-## 按文字匹配
-
-原生 CSS 没有"按可见文字内容匹配"这种选择器，`{ selector, text }` 就是为按钮和链接补上这个能力——这往往是它们最容易被人认出来、也最不容易在改版中被换掉的标识，尤其是在没有 id/aria-label/data 属性的情况下：
-
-```js
-await cursor.click({ selector: 'button', text: '提交' })
-
-// 好几个元素文字完全一样的话，组合 index，跟重复 id 的处理方式一样：
-await cursor.click({ selector: 'button', text: '删除', index: 2 }) // 第三个"删除"按钮
-```
-
-这是 page-pilot-recorder 给一个实在没法用别的方式识别的按钮/链接自动生成的格式。`text` 和 `index` 也都能跟 `frame` 自由组合。
-
-## iframe 支持
-
-在**同源** iframe 里录制的步骤（或者你自己手写的步骤）可以带一个 `frame` 字段——一个 iframe 选择器，多层嵌套的话是数组——`run()` 会自动去正确的文档里解析这个元素：
-
-```js
-await cursor.run([
-  { type: 'click', target: '#confirm-btn', frame: '#payment-iframe' },
-])
-
-// 也可以直接调用方法，传 { selector, frame } 这种形式：
-await cursor.click({ selector: '#confirm-btn', frame: '#payment-iframe' })
-
-// 嵌套 iframe：从最外层到最内层
-await cursor.type({ selector: '#field', frame: ['#outer-iframe', '#inner-iframe'] }, 'hello')
-
-// index 和 frame 可以组合使用：既在 iframe 里,又碰上重复 id
-await cursor.click({ selector: '[id="dup"]', index: 1, frame: '#payment-iframe' })
-```
-
-光标圆点、点击涟漪、高亮框，都会正确换算 iframe 在页面上的实际位置——因为 `getBoundingClientRect()` 返回的坐标是相对于元素自己所在窗口的，不是相对于顶层页面，page-pilot 会先把 iframe 内部的相对坐标换算成顶层坐标，再去画这些视觉效果。
-
-如果一次点击导致某个 iframe **自己**跳转或者重新加载内容（很常见，比如内嵌的支付组件、多步骤表单——顶层页面的地址栏完全不变，只是 iframe 自己变了），`waitFor({ selector, frame }, ...)` 会正确跟着这次重新加载走，而不会卡在轮询一个已经作废的旧文档上。不管触发这次点击的按钮是在 iframe 里面，还是在父页面上（比如父页面上的一个"刷新"按钮，或者 `<form target="iframe-name">` 这种提交方式）——只要变化的是 iframe 自己的内容，都一样能正常工作：
-
-```js
-await cursor.click({ selector: '#next-step-btn', frame: '#payment-iframe' })
-await cursor.waitFor({ selector: '#step-2-marker', frame: '#payment-iframe' })
-```
-
-这种写法需要你先知道新内容里有个什么元素可以拿来等。如果你不想这么麻烦——或者遇到的情况是"下一步跑得太快，iframe 甚至还没开始刷新，结果点到了旧内容里那个即将被替换掉的按钮"——`waitForFrameReload()` 直接等 iframe 自己的文档对象真的换了一份，完全不需要知道新内容长什么样：
-
-```js
-await cursor.click('#refresh-iframe-btn')   // 不管这个按钮在 iframe 里面还是在父页面上都一样
-await cursor.waitForFrameReload('#payment-iframe')
-await cursor.click({ selector: '#new-btn', frame: '#payment-iframe' })
-```
-
-如果你压根不想手动加这一步等待——比如你在跑的是别人录制好的步骤，或者是通过 [page-pilot-toolkit](https://github.com/jyy1082/page-pilot-toolkit) 这类工具粘贴进来的步骤——把 `autoWaitForIframeReload` 设成 `true`。每次点击之后，它会短暂观察页面上**每一个**同源 iframe 有没有开始重新加载，不管是哪个 iframe、也不管触发它的点击是在 iframe 里面还是外面，如果发现有就自动等它加载完，再继续下一步：
-
-```js
-const cursor = new PagePilot({ autoWaitForIframeReload: true })
-await cursor.click('#refresh-iframe-btn')
-await cursor.click({ selector: '#new-btn', frame: '#payment-iframe' }) // 不需要手动加等待
-```
-
-默认关闭，这样不会在你不知情的情况下悄悄改变已有的行为；如果什么都没有重新加载，也不会带来明显的延迟（`autoIframeReloadGrace`，默认 400ms，是它放弃观察、直接往下走之前愿意等的时长）。这是一个尽力而为的安全网，不是绝对保证——如果重新加载的时机晚于这个观察窗口，还是可能捕捉不到；如果你明确知道某一步一定需要等，还是用 `waitForFrameReload()` 显式写出来更可靠。
-
-**跨域的 iframe 完全没法操作**——读取或者操作跨域 iframe 内部的任何东西，都是浏览器自己拦下来的（任何浏览器自动化工具，不借助服务端配合，都进不去跨域 iframe），不是这个库特有的限制。
-
-### 配置项
-
-```js
-new PagePilot({
-  color: '#378ADD',
-  size: 16,
-  moveDuration: 480,
-  clickPause: 260,
-  typeDelay: 45,
-  respectReducedMotion: true,
-  showCursorDot: true,
-  showScrollIndicator: false,
-  showPageGlow: false,
-  pageGlowColor: null,
-  pageGlowWidth: 4,
-  pageGlowTarget: null,
-  pageGlowRadius: 0,
-  blockInteraction: true,     // 呼吸边框亮着的时候，屏蔽这个区域内的真实鼠标点击
-  pointerBlockAllowlist: [],  // 即使被屏蔽，也依然保持可点击的选择器列表（比如 Stop 按钮）
-  pageGlowMessage: null,      // 固定在呼吸边框顶部的状态提示文字；null = 不显示
-  blockInteraction: true,
-  pageGlowMessage: null,
-  highlightEnabled: true,
-  highlightColor: null,        // 默认跟 color 一致
-  highlightDuration: null,     // null = 一直保持直到手动清除；数字（毫秒）= 自动淡出
-  autoWaitForIframeReload: false, // 每次点击后，短暂观察有没有 iframe 开始重新加载，有的话就等它加载完
-  autoIframeReloadGrace: 400,  // 观察"是否开始重新加载"愿意等多久（毫秒）
-  autoIframeReloadMaxWait: 4000, // 检测到重新加载后，最多等它加载完多久（毫秒）
-  verifyClickable: false, // 点击前先确认目标元素真的是那个位置上最上面的东西
-  onObstruction: null, // async (blockingEl, targetEl) => boolean —— 自己处理被挡住的情况，而不是直接报错
-  scrollSettleTimeout: 1200,
-  onExecuteClick: (el) => { /* 派发 pointerdown/mousedown/pointerup/mouseup/click，见源码 */ },
-  onExecuteInput: (el, text) => { /* 原生 setter 输入，见源码 */ },
-  onBeforeStep: (step) => {},
-  onAfterStep: (step) => {},
-})
-```
-
-## 框架兼容性
-
-跟纯 HTML 一样，能正常在 React、Vue 等框架渲染出来的界面上工作——这个库只操作真实 DOM，不管是哪个框架，最终渲染出来的都是真实的 DOM 节点。
-
-- **点击**：派发的是一整套 `pointerdown`/`mousedown`/`pointerup`/`mouseup`/`click` 事件序列，不只是单独调用 `el.click()`——`.click()` 单独调用只会触发 `click` 这一个事件，但现实中很多 UI（下拉菜单、标签页切换、AceAdmin 这类后台管理框架）为了操作更跟手，会把真正的逻辑绑在 `mousedown` 上而不是 `click` 上。这些事件都会正常冒泡，能被 React 的委托事件监听器像真实鼠标点击一样捕获到。
-- **打字和 `select()`**：走的是元素的原生属性 setter，而不是直接赋值——这是专门用来绕过 React（以及其他一些框架）对受控组件的值追踪机制的：直接 `el.value = x` 即使配合派发 `input`/`change` 事件，也会被 React 的变化检测悄悄忽略，必须走这个绕过逻辑 `onChange` 才会真正触发。
-- 像 MUI、Ant Design 这类组件库，如果底层用的是套了样式的原生 `<input>` 实现 checkbox/开关，直接用 `check()` 就行；如果是完全自己拼的 `<div role="switch">`，走 `check()` 的 ARIA 支持（见上文）。
-
-## 已知限制
-
-- 原生 `<select>` 展开的选项列表是操作系统/浏览器渲染的，不在 DOM 里，所以只有点击选择框这个动作能做动画。
-- 文件上传输入框（`<input type="file">`）出于安全原因，任何浏览器都不允许用脚本设置。
-- 原生的日期/颜色选择器跟 `<select>` 一样，弹出的面板是浏览器绘制的，有同样的限制。
-- `dragTo()` 覆盖的是基于鼠标事件实现的拖拽（大部分排序列表、滑块、自定义拖拽组件）——它驱动不了原生 HTML5 的拖放（`draggable="true"` + `DataTransfer`），这个在大部分浏览器里需要真实的用户手势。Canvas 类组件也没有直接支持；可以用 `step()` 写自定义逻辑，同时仍然能获得光标动画。
-- `pressKey()` 派发的是真实的 KeyboardEvent，任何监听器都能收到，但是——跟 `click()` 一样——它不会触发浏览器自带的默认按键行为（比如单单按 Enter 不会自动提交表单，除非页面自己的 JS 显式做了这件事）。
-- 一个完全用普通 `<div>` 拼出来、没有任何语义化标记的"表单"（没有 `role`/`aria-checked`，没有 `contenteditable`，也没有真实的 `<input>`）没有标准的状态可读可写——`click()` 对纯点击行为依然有效，但涉及状态的部分，需要用 `step()` 自己读写这个组件用的自定义属性或 class。
-- 这个库只移动一个**视觉上**的光标——它没法移动用户真实的、物理的鼠标指针（浏览器不会把这个能力开放给页面脚本），并且点击是作为合成事件（`isTrusted: false`）派发的。
+---
 
 ## 测试
 
 ```bash
 npm install
-npm test
+npm test               # 四层全部跑一遍
+npm run test:core      # 只跑某一层
+npm run test:recorder
+npm run test:skills
+npm run test:toolkit
 ```
 
-跑的是真实浏览器的回归测试（Playwright + Chromium，通过 `@sparticuz/chromium` 拿到——它把浏览器打包在了 npm 包本身里，具体原因见 [page-pilot-recorder 的 README](https://github.com/jyy1082/page-pilot-recorder#testing)）。这对同源 iframe 支持这部分尤其重要：每个 iframe 都有自己独立的 JavaScript realm、自己独立的 `Element`/`Document` 构造函数，iframe 视口和顶层页面之间的坐标换算也得放到真实浏览器的实际布局里才能验证对不对——模拟出来的 DOM 环境两边都复现不到位，测不出这类问题。
+跑的都是真实浏览器测试（Playwright + Chromium，通过 `@sparticuz/chromium` 拿到——它的 npm 包把浏览器二进制文件直接打包在自己的 tarball 里，不需要额外单独下载一步，这在没法访问 Playwright 自己的 CDN 的沙盒环境里很关键）。这个项目一路做下来，真实浏览器测试抓到过好几个用模拟 DOM 环境（jsdom）完全测不出来的 bug——跨 realm 的 `instanceof` 对 iframe 内容失效、`activeElement` 判断范围搞错了文档、`el.click()` 压根不会模拟 `mousedown`，等等——每一个都记录在 [CHANGELOG.md](./CHANGELOG.md) 里对应发现它的那次改动里。
 
 ## 协议
 

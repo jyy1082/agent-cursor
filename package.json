@@ -1,21 +1,28 @@
 {
   "name": "page-pilot",
-  "version": "0.17.0",
-  "description": "A dependency-free visual layer for automated page operations: an animated cursor, click ripples, and persistent highlight borders for AI/browser automation agents.",
+  "version": "1.0.0",
+  "description": "A dependency-free, four-layer toolkit for visualized browser automation: page-pilot (playback with an animated cursor, click ripples, and highlight borders), page-pilot-recorder (turn real clicks/typing into a step array), page-pilot-skills (turn a recording into a reusable, named skill), and a bookmarklet toolkit tying them together with no install required.",
   "type": "module",
-  "main": "page-pilot.js",
-  "module": "page-pilot.js",
+  "main": "src/page-pilot.js",
+  "module": "src/page-pilot.js",
   "exports": {
-    ".": "./page-pilot.js"
+    ".": "./src/page-pilot.js",
+    "./recorder": "./src/page-pilot-recorder.js",
+    "./skills": "./src/page-pilot-skills.js",
+    "./toolkit": "./src/toolkit.js"
   },
   "files": [
-    "page-pilot.js",
+    "src",
     "README.md",
     "README.zh-CN.md",
     "LICENSE"
   ],
   "scripts": {
-    "test": "node test/browser-test.mjs"
+    "test": "npm run test:core && npm run test:recorder && npm run test:skills && npm run test:toolkit",
+    "test:core": "node test/core/browser-test.mjs",
+    "test:recorder": "node test/recorder/browser-test.mjs",
+    "test:skills": "node test/skills/browser-test.mjs",
+    "test:toolkit": "node test/toolkit/browser-test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.40.0",
@@ -27,7 +34,10 @@
     "cursor-animation",
     "dom-automation",
     "gui-agent",
-    "visualization"
+    "visualization",
+    "recorder",
+    "bookmarklet",
+    "automation-skills"
   ],
   "license": "MIT",
   "sideEffects": false,

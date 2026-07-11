@@ -20,7 +20,7 @@ const { chromium } = require('playwright');
 const sparticuzChromium = require('@sparticuz/chromium').default;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(__dirname, '../..');
 
 let pass = 0;
 let fail = 0;
@@ -33,7 +33,7 @@ function startServer() {
   const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json' };
   const server = http.createServer(async (req, res) => {
     try {
-      const urlPath = req.url === '/' ? '/test/fixture.html' : req.url;
+      const urlPath = req.url === '/' ? '/test/core/fixture.html' : req.url;
       const filePath = path.join(ROOT, urlPath);
       const body = await readFile(filePath);
       const ext = path.extname(filePath);
@@ -65,7 +65,7 @@ async function main() {
 
   async function freshPage() {
     const page = await browser.newPage();
-    await page.goto(`${base}/test/fixture.html`);
+    await page.goto(`${base}/test/core/fixture.html`);
     await page.waitForSelector('#test-iframe');
     // Wait for the iframe's own content to be ready before poking at it.
     await page.frameLocator('#test-iframe').locator('#iframe-input').waitFor();
@@ -403,9 +403,9 @@ async function main() {
   console.log('=== full round trip: recorder captures inside an iframe, PagePilot replays it ===');
   {
     const page = await freshPage();
-    await page.addScriptTag({ url: '/page-pilot-recorder.js', type: 'module' }).catch(() => {});
+    await page.addScriptTag({ url: '/src/page-pilot-recorder.js', type: 'module' }).catch(() => {});
     const result = await page.evaluate(async () => {
-      const { PagePilotRecorder } = await import('/page-pilot-recorder.js');
+      const { PagePilotRecorder } = await import('/src/page-pilot-recorder.js');
       const recorder = new PagePilotRecorder({ ui: false });
       recorder.start();
 
