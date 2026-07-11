@@ -2,7 +2,7 @@
 
 **English** · [中文](./README.zh-CN.md)
 
-**Version 0.14.0** · see [CHANGELOG.md](./CHANGELOG.md) for release history
+**Version 0.15.0** · see [CHANGELOG.md](./CHANGELOG.md) for release history
 
 A dependency-free visualization layer for automated webpage operations.
 
@@ -375,7 +375,7 @@ new PagePilot({
   autoIframeReloadGrace: 400,  // ms to watch for a reload starting
   autoIframeReloadMaxWait: 4000, // ms to wait for a detected reload to finish
   scrollSettleTimeout: 1200,
-  onExecuteClick: (el) => el.click(),
+  onExecuteClick: (el) => { /* dispatches pointerdown/mousedown/pointerup/mouseup/click, see source */ },
   onExecuteInput: (el, text) => { /* native-setter input, see source */ },
   onBeforeStep: (step) => {},
   onAfterStep: (step) => {},
@@ -388,8 +388,13 @@ Works against React, Vue, and other framework-rendered UIs the same as
 plain HTML — the library only ever touches the real DOM, and every
 framework's UI ends up as real DOM nodes at runtime.
 
-- **Clicks** dispatch a real `el.click()`, which bubbles and is caught by
-  React's delegated event listeners exactly like a real mouse click.
+- **Clicks** dispatch a full `pointerdown`/`mousedown`/`pointerup`/`mouseup`/
+  `click` sequence, not just `el.click()` alone — `.click()` by itself only
+  ever fires a `click` event, and plenty of real-world UI (dropdown menus,
+  tab switches, admin dashboard frameworks like AceAdmin) binds its actual
+  behavior to `mousedown` instead, for snappier interaction. All of these
+  bubble and get caught by React's delegated event listeners the same as a
+  real mouse click.
 - **Typing and `select()`** go through the element's native property setter
   rather than plain assignment, specifically to work around React's (and
   some other frameworks') controlled-component value tracking — plain
@@ -415,6 +420,15 @@ framework's UI ends up as real DOM nodes at runtime.
   in most browsers. Canvas-based widgets also aren't covered directly; use
   `step()` to write custom logic while still getting the cursor animation
   for free.
+- Every event this library dispatches is a genuine, real DOM event that any
+  listener will see and react to — but it's `isTrusted: false`, since only
+  actual OS-level user input produces `isTrusted: true`, and no page-level
+  JavaScript (this library or any other) can change that. Most sites don't
+  check `event.isTrusted` and work fine; a few (often ones with deliberate
+  anti-automation logic on a specific sensitive action) explicitly gate
+  behavior behind it and will silently ignore an untrusted click no matter
+  how it's dispatched. If a click's animation plays correctly but nothing
+  happens, this is worth ruling out.
 - `pressKey()` dispatches real KeyboardEvents any listener will see, but —
   like `click()` — it won't trigger a browser's own built-in default action
   for a key (e.g. Enter alone won't auto-submit a form unless the page's own

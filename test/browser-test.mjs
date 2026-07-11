@@ -72,6 +72,19 @@ async function main() {
     return page;
   }
 
+  console.log('=== click() triggers mousedown-bound handlers too, not just click ===');
+  {
+    const page = await freshPage();
+    const fired = await page.evaluate(async () => {
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4 });
+      await cursor.click('#mousedown-only-link');
+      cursor.destroy();
+      return window.__mousedownLinkFired;
+    });
+    check('a handler bound only to mousedown (common in dropdown/tab-switch UI) still fires', fired === true);
+    await page.close();
+  }
+
   console.log('=== click() inside a same-origin iframe ===');
   {
     const page = await freshPage();

@@ -2,7 +2,7 @@
 
 [English](./README.md) · **中文**
 
-**版本 0.14.0** · 完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)
+**版本 0.15.0** · 完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)
 
 一个零依赖的"自动化网页操作可视化层"。
 
@@ -300,7 +300,7 @@ new PagePilot({
   autoIframeReloadGrace: 400,  // 观察"是否开始重新加载"愿意等多久（毫秒）
   autoIframeReloadMaxWait: 4000, // 检测到重新加载后，最多等它加载完多久（毫秒）
   scrollSettleTimeout: 1200,
-  onExecuteClick: (el) => el.click(),
+  onExecuteClick: (el) => { /* 派发 pointerdown/mousedown/pointerup/mouseup/click，见源码 */ },
   onExecuteInput: (el, text) => { /* 原生 setter 输入，见源码 */ },
   onBeforeStep: (step) => {},
   onAfterStep: (step) => {},
@@ -311,7 +311,7 @@ new PagePilot({
 
 跟纯 HTML 一样，能正常在 React、Vue 等框架渲染出来的界面上工作——这个库只操作真实 DOM，不管是哪个框架，最终渲染出来的都是真实的 DOM 节点。
 
-- **点击**：派发的是真实的 `el.click()`，会正常冒泡，能被 React 的委托事件监听器像真实鼠标点击一样捕获到。
+- **点击**：派发的是一整套 `pointerdown`/`mousedown`/`pointerup`/`mouseup`/`click` 事件序列，不只是单独调用 `el.click()`——`.click()` 单独调用只会触发 `click` 这一个事件，但现实中很多 UI（下拉菜单、标签页切换、AceAdmin 这类后台管理框架）为了操作更跟手，会把真正的逻辑绑在 `mousedown` 上而不是 `click` 上。这些事件都会正常冒泡，能被 React 的委托事件监听器像真实鼠标点击一样捕获到。
 - **打字和 `select()`**：走的是元素的原生属性 setter，而不是直接赋值——这是专门用来绕过 React（以及其他一些框架）对受控组件的值追踪机制的：直接 `el.value = x` 即使配合派发 `input`/`change` 事件，也会被 React 的变化检测悄悄忽略，必须走这个绕过逻辑 `onChange` 才会真正触发。
 - 像 MUI、Ant Design 这类组件库，如果底层用的是套了样式的原生 `<input>` 实现 checkbox/开关，直接用 `check()` 就行；如果是完全自己拼的 `<div role="switch">`，走 `check()` 的 ARIA 支持（见上文）。
 

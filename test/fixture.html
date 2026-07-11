@@ -6,6 +6,7 @@
 </head>
 <body>
   <button id="top-btn">Top button</button>
+  <a id="mousedown-only-link" href="javascript:void(0)">Only responds to mousedown</a>
   <button id="dup-btn">First</button>
   <button id="dup-btn">Second</button>
   <button id="dup-btn">Third</button>
@@ -19,6 +20,14 @@
   <script type="module">
     import { PagePilot } from '/page-pilot.js';
     window.PagePilot = PagePilot;
+
+    // Simulates a real-world UI pattern (dropdown menus, tab switches,
+    // admin dashboard frameworks) that binds its actual behavior to
+    // mousedown for snappier interaction, instead of click.
+    window.__mousedownLinkFired = false;
+    document.getElementById('mousedown-only-link').addEventListener('mousedown', () => {
+      window.__mousedownLinkFired = true;
+    });
 
     // Simulates a button OUTSIDE the iframe (on the top-level page) that
     // causes the iframe to navigate/reload its own content — e.g. a

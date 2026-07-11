@@ -5,6 +5,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/) — while
 in `0.x`, minor version bumps may include breaking changes.
 
+## [0.15.0] — Fuller click event simulation
+
+### Fixed
+- The default `onExecuteClick` only ever called `el.click()`, which
+  dispatches nothing but a `click` event (plus native activation behavior
+  like link navigation or form submission) — it does NOT simulate
+  `mousedown`/`mouseup`/`pointerdown`/`pointerup` at all. Plenty of
+  real-world UI (dropdown menus, tab switches, admin dashboard frameworks
+  like AceAdmin) binds its actual behavior to `mousedown` instead of
+  `click`, for snappier interaction, and would silently never respond to
+  a bare `.click()` call — the cursor animation would play correctly (since
+  that's independent of what the target element actually does), but
+  nothing would happen. The default now dispatches the fuller
+  `pointerdown → mousedown → pointerup → mouseup → click` sequence,
+  covering both cases. Verified with a controlled comparison (a handler
+  bound only to `mousedown` genuinely never fires from plain `el.click()`,
+  confirmed fixed with the new sequence) and a new permanent test.
+- Documented a related, separate, and unfixable limitation discovered
+  while investigating this: every event this library dispatches is
+  `isTrusted: false` (no page-level JavaScript can produce a trusted
+  event — this is a deliberate browser security boundary). Most sites
+  don't check `event.isTrusted` and are unaffected, but a few — often ones
+  with deliberate anti-automation logic on a specific sensitive action —
+  explicitly gate behavior behind it and will silently ignore any
+  synthetic click no matter how it's dispatched. If a click's animation
+  plays but nothing happens, and the mousedown fix above doesn't explain
+  it, this is worth ruling out; there is no workaround from page-level
+  JavaScript.
+
 ## [0.14.0] — Automatic iframe-reload detection
 
 ### Added
