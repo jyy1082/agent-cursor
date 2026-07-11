@@ -17,6 +17,36 @@
   <button id="reload-iframe-from-outside">Reload iframe (from outside)</button>
   <iframe id="test-iframe" src="/test/iframe-fixture.html" style="width:300px; height:200px; border:1px solid #ccc;"></iframe>
 
+  <div style="position:relative; height:60px;">
+    <button id="covered-btn" style="position:absolute; left:10px; top:10px; width:100px; height:40px;">Behind modal</button>
+    <div id="modal-backdrop" style="position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:500000; display:none;">
+      <button id="modal-close-btn" style="position:absolute; left:20px; top:20px;">Close modal</button>
+    </div>
+  </div>
+
+  <button id="icon-btn"><span id="icon-inner">&#9654;</span> Button with inner icon</button>
+
+  <script>
+    // Simulates a real modal: a full-screen backdrop that sits on top of
+    // (and blocks real mouse access to) whatever's behind it, until
+    // dismissed. #covered-btn is only reachable by a real click once this
+    // is hidden. Starts closed — tests that need it open call
+    // showModalBackdrop() explicitly, the way a real modal would only
+    // appear in response to something.
+    window.showModalBackdrop = () => { document.getElementById('modal-backdrop').style.display = 'block'; };
+    document.getElementById('modal-close-btn').addEventListener('click', () => {
+      document.getElementById('modal-backdrop').style.display = 'none';
+    });
+    window.__coveredBtnClicked = false;
+    document.getElementById('covered-btn').addEventListener('click', () => {
+      window.__coveredBtnClicked = true;
+    });
+    window.__iconBtnClicked = false;
+    document.getElementById('icon-btn').addEventListener('click', () => {
+      window.__iconBtnClicked = true;
+    });
+  </script>
+
   <script type="module">
     import { PagePilot } from '/page-pilot.js';
     window.PagePilot = PagePilot;

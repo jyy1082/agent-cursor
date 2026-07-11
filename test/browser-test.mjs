@@ -72,6 +72,96 @@ async function main() {
     return page;
   }
 
+  console.log('=== WITHOUT verifyClickable (default): clicking through a modal backdrop silently "succeeds" ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      window.showModalBackdrop();
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4 }); // verifyClickable not set — default off
+      await cursor.click('#covered-btn'); // real mouse could never reach this — the modal backdrop covers it
+      cursor.destroy();
+      return window.__coveredBtnClicked;
+    });
+    check('demonstrates the risk: the covered button gets clicked anyway by default (no check)', result === true);
+    await page.close();
+  }
+
+  console.log('=== WITH verifyClickable: true, the same click throws instead of silently going through ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      window.showModalBackdrop();
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4, verifyClickable: true });
+      let message = null;
+      try {
+        await cursor.click('#covered-btn');
+      } catch (e) {
+        message = e.message;
+      } finally {
+        cursor.destroy();
+      }
+      return { message, clicked: window.__coveredBtnClicked };
+    });
+    check('throws a clear error instead of clicking through the modal', typeof result.message === 'string' && result.message.includes('covered'));
+    check('the covered button is NOT actually clicked when blocked', result.clicked === false);
+    await page.close();
+  }
+
+  console.log('=== verifyClickable: true correctly allows the click once the modal is actually closed ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      window.showModalBackdrop();
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4, verifyClickable: true });
+      await cursor.click('#modal-close-btn'); // closes the backdrop
+      await cursor.click('#covered-btn'); // now genuinely reachable
+      cursor.destroy();
+      return window.__coveredBtnClicked;
+    });
+    check('once the modal is really closed, the same target clicks correctly with no error', result === true);
+    await page.close();
+  }
+
+  console.log('=== verifyClickable: true does not false-positive on an icon nested inside the button itself ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4, verifyClickable: true });
+      let errored = false;
+      try {
+        await cursor.click('#icon-btn'); // its own visual center may hit the inner <span> icon, not the button itself
+      } catch {
+        errored = true;
+      }
+      cursor.destroy();
+      return { errored, clicked: window.__iconBtnClicked };
+    });
+    check('no false-positive obstruction error for an icon nested inside the target', result.errored === false);
+    check('the button click still actually fires', result.clicked === true);
+    await page.close();
+  }
+
+  console.log('=== verifyClickable: true does not false-positive on page-pilot\'s own glow/blocker overlay ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      const cursor = new window.PagePilot({
+        moveDuration: 4, clickPause: 4, verifyClickable: true,
+        showPageGlow: true, pageGlowTarget: '#top-btn', blockInteraction: true,
+      });
+      let errored = false;
+      try {
+        await cursor.click('#top-btn'); // sits right inside the glow+blocker's own covered area
+      } catch {
+        errored = true;
+      }
+      cursor.destroy();
+      return errored;
+    });
+    check('page-pilot\'s own glow/blocker overlay is correctly excluded, no false-positive', result === false);
+    await page.close();
+  }
+
   console.log('=== click() triggers mousedown-bound handlers too, not just click ===');
   {
     const page = await freshPage();

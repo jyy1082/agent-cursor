@@ -5,6 +5,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/) — while
 in `0.x`, minor version bumps may include breaking changes.
 
+## [0.16.0] — Modal/overlay obstruction detection
+
+### Added
+- `verifyClickable` option (default `false`) — before every click, confirms
+  the target is actually the topmost element at its own position, the way
+  a real mouse click would effectively require. Because this library
+  dispatches events straight to a resolved element instead of going
+  through the browser's normal hit-testing at a screen position, it can
+  otherwise click "through" something a real mouse never could — most
+  commonly a modal dialog's backdrop that's still covering the page behind
+  it (e.g. a previous step's close button didn't actually work, or
+  something it was waiting on never resolved). With this on, such a click
+  throws a clear error naming what's covering the target instead of
+  silently reaching past it. Uses `document.elementsFromPoint()` (with a
+  same-origin-iframe-aware document lookup, so it works correctly for
+  iframe-scoped targets too), and correctly excludes this library's own
+  overlay elements (cursor, ripple, highlight boxes, page glow, its
+  blocker) from ever counting as an obstruction, as well as anything
+  nested inside the target itself (an icon or text node inside a button
+  isn't "covering" it).
+- 5 new real-browser tests: the risk demonstrated without the option (click
+  goes through the modal backdrop silently), the fix throwing a clear
+  error instead, the click succeeding normally once the modal is genuinely
+  closed, no false positive for an icon nested inside the target, and no
+  false positive against this library's own glow/blocker overlay when both
+  are active together.
+
 ## [0.15.0] — Fuller click event simulation
 
 ### Fixed

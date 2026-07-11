@@ -2,7 +2,7 @@
 
 **English** · [中文](./README.zh-CN.md)
 
-**Version 0.15.0** · see [CHANGELOG.md](./CHANGELOG.md) for release history
+**Version 0.16.0** · see [CHANGELOG.md](./CHANGELOG.md) for release history
 
 A dependency-free visualization layer for automated webpage operations.
 
@@ -229,6 +229,38 @@ text" below) — these are the shapes
 [page-pilot-recorder](https://github.com/jyy1082/page-pilot-recorder)
 produces automatically, so recorded steps replay with no manual adjustment.
 
+## Modals and overlays
+
+Because clicks are dispatched straight to a resolved element instead of
+going through the browser's normal hit-testing at a screen position, this
+library can click "through" something a real mouse never could — most
+commonly, a modal dialog's backdrop that's still covering the page behind
+it. If a previous step didn't actually close a modal (its own close button
+didn't do what was expected, a network request it was waiting on never
+resolved, etc.), the *next* step would otherwise happily reach past it and
+interact with whatever's still there in the background, which a real user
+physically could not do.
+
+Set `verifyClickable: true` to check for this before every click: it
+confirms the target is actually the topmost element at its own position
+(the same check a real mouse click would effectively make), and throws a
+clear error naming what's covering it instead of clicking through:
+
+```js
+const cursor = new PagePilot({ verifyClickable: true })
+await cursor.click('#save-btn')
+// Error: PagePilot: target is covered by another element (.modal-backdrop)
+// and a real mouse couldn't reach it — possibly a modal/overlay that's
+// still open.
+```
+
+An icon or text node nested inside the button you're clicking doesn't
+trigger this (that's still "the button", not something covering it) —
+only a genuinely separate element sitting on top does. It's off by default
+so existing scripts that don't need this keep working exactly as before;
+turn it on for flows where clicking the wrong thing silently would be
+worse than stopping with a clear error.
+
 ## Duplicate ids
 
 Real (especially older or messier) sites often have more than one element
@@ -374,6 +406,7 @@ new PagePilot({
   autoWaitForIframeReload: false, // after each click, briefly watch for any iframe starting to reload and wait for it
   autoIframeReloadGrace: 400,  // ms to watch for a reload starting
   autoIframeReloadMaxWait: 4000, // ms to wait for a detected reload to finish
+  verifyClickable: false, // before clicking, confirm the target is actually the topmost element at its own position
   scrollSettleTimeout: 1200,
   onExecuteClick: (el) => { /* dispatches pointerdown/mousedown/pointerup/mouseup/click, see source */ },
   onExecuteInput: (el, text) => { /* native-setter input, see source */ },

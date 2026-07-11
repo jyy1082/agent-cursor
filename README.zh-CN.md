@@ -2,7 +2,7 @@
 
 [English](./README.md) · **中文**
 
-**版本 0.15.0** · 完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)
+**版本 0.16.0** · 完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)
 
 一个零依赖的"自动化网页操作可视化层"。
 
@@ -200,6 +200,22 @@ const cursor = new PagePilot({
 
 `target` 可以是一个 `Element`、CSS 选择器字符串，或者是一个对象，组合了 `selector` 和 `frame`（同源 iframe 里的元素，见下面的"iframe 支持"）、`index`（区分一个本身不唯一的选择器匹配到的第几个，见下面的"重复 id"）、和/或 `text`（按钮/链接按可见文字匹配，见下面的"按文字匹配"）——这些都是 [page-pilot-recorder](https://github.com/jyy1082/page-pilot-recorder) 会自动生成的格式，录制出来的步骤不需要手动调整就能直接回放。
 
+## 弹窗和蒙版
+
+因为点击是直接派发给已经解析好的元素，而不是通过浏览器在某个屏幕位置的正常"命中测试"去找的，这个库有可能"穿透"过真实鼠标根本碰不到的东西——最常见的情况就是：一个模态弹窗的蒙版还盖在页面上面。如果上一步其实没有真的把弹窗关掉（它自己的关闭按钮没起到预期效果、等待的某个网络请求一直没返回，等等），**下一步**默认还是会正常穿过这层蒙版去操作背后的内容——而真人用鼠标是物理上碰不到的。
+
+把 `verifyClickable` 设成 `true`，每次点击之前都会先检查一下：目标元素是不是真的是它自己那个位置上最上面的东西（等效于真实鼠标点击会做的判断），如果被别的东西挡住了，会直接报一个清楚的错误，说明是被什么挡住的，而不是悄悄穿透过去：
+
+```js
+const cursor = new PagePilot({ verifyClickable: true })
+await cursor.click('#save-btn')
+// Error: PagePilot: target is covered by another element (.modal-backdrop)
+// and a real mouse couldn't reach it — possibly a modal/overlay that's
+// still open.
+```
+
+按钮内部嵌套的图标或者文字节点不会触发这个报错（那本来就"是"这个按钮的一部分，不是挡住它的东西）——只有真正独立的、盖在上面的元素才算。默认关闭，这样不需要这个检查的现有脚本行为完全不变；对于那些"点错东西"比"直接停下来报错"后果更严重的流程，建议开启它。
+
 ## 重复 id
 
 真实网站（尤其是老旧或者比较"糙"的网站）经常出现同一个 `id` 被用在好几个元素上——不合规的 HTML，但浏览器不会阻止。`{ selector, index }` 用来指定"匹配到的第几个"，而不是默认用第一个：
@@ -299,6 +315,7 @@ new PagePilot({
   autoWaitForIframeReload: false, // 每次点击后，短暂观察有没有 iframe 开始重新加载，有的话就等它加载完
   autoIframeReloadGrace: 400,  // 观察"是否开始重新加载"愿意等多久（毫秒）
   autoIframeReloadMaxWait: 4000, // 检测到重新加载后，最多等它加载完多久（毫秒）
+  verifyClickable: false, // 点击前先确认目标元素真的是那个位置上最上面的东西
   scrollSettleTimeout: 1200,
   onExecuteClick: (el) => { /* 派发 pointerdown/mousedown/pointerup/mouseup/click，见源码 */ },
   onExecuteInput: (el, text) => { /* 原生 setter 输入，见源码 */ },
