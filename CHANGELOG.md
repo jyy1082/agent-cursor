@@ -5,6 +5,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/) — while
 in `0.x`, minor version bumps may include breaking changes.
 
+## [0.16.1]
+
+### Documentation
+- Verified and documented that `verifyClickable` works correctly with
+  dropdown menus (via `chooseOption()` or two plain `click()` calls) — a
+  menu's own option is naturally the topmost element at its position once
+  the menu is open. This includes the common "click outside to close"
+  pattern many component libraries use (a transparent full-page overlay
+  that appears alongside the menu to detect outside clicks): as long as it
+  sits behind the menu itself, which it needs to for the menu to be
+  clickable at all, it's never mistaken for an obstruction. Added 2 new
+  real-browser tests covering a plain dropdown and one with that overlay
+  pattern present. No code change — this confirms already-correct
+  behavior.
+
 ## [0.16.0] — Modal/overlay obstruction detection
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "page-pilot",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "description": "A dependency-free visual layer for automated page operations: an animated cursor, click ripples, and persistent highlight borders for AI/browser automation agents.",
   "type": "module",
   "main": "page-pilot.js",

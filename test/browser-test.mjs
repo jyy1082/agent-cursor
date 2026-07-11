@@ -162,6 +162,52 @@ async function main() {
     await page.close();
   }
 
+  console.log('=== verifyClickable: true does not false-positive on a real dropdown menu (chooseOption) ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4, verifyClickable: true });
+      let errored = false;
+      try {
+        await cursor.chooseOption('#dropdown-toggle', '#dropdown-delete-option');
+      } catch {
+        errored = true;
+      }
+      cursor.destroy();
+      return { errored, clicked: window.__dropdownDeleteClicked };
+    });
+    check('no false-positive opening a dropdown and clicking its own option', result.errored === false);
+    check('the dropdown option actually gets clicked', result.clicked === true);
+    await page.close();
+  }
+
+  console.log('=== verifyClickable: true still works with a dropdown\'s own click-outside-to-close overlay present ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      // A common real component-library pattern: a transparent full-page
+      // overlay appears alongside the menu specifically to detect outside
+      // clicks and close it — sitting behind the menu (lower z-index) but
+      // above everything else. Confirms that overlay is never mistaken for
+      // something obstructing the menu's own option.
+      const cursor = new window.PagePilot({ moveDuration: 4, clickPause: 4, verifyClickable: true });
+      await cursor.click('#dropdown-toggle');
+      const catcherVisible = getComputedStyle(document.getElementById('click-outside-catcher')).display !== 'none';
+      let errored = false;
+      try {
+        await cursor.click('#dropdown-delete-option');
+      } catch {
+        errored = true;
+      }
+      cursor.destroy();
+      return { catcherVisible, errored, clicked: window.__dropdownDeleteClicked };
+    });
+    check('the click-outside-catcher overlay was genuinely present during this test', result.catcherVisible === true);
+    check('no false-positive even with that overlay present behind the menu', result.errored === false);
+    check('the option click still registers correctly', result.clicked === true);
+    await page.close();
+  }
+
   console.log('=== click() triggers mousedown-bound handlers too, not just click ===');
   {
     const page = await freshPage();

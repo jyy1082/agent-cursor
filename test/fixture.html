@@ -26,6 +26,34 @@
 
   <button id="icon-btn"><span id="icon-inner">&#9654;</span> Button with inner icon</button>
 
+  <div id="dropdown-wrap" style="position:relative;">
+    <a href="javascript:void(0)" id="dropdown-toggle">Actions</a>
+    <div id="click-outside-catcher" style="display:none; position:fixed; inset:0; background:transparent; z-index:900;"></div>
+    <ul id="dropdown-menu" style="display:none; position:absolute; list-style:none; padding:8px; background:#fff; border:1px solid #ccc; z-index:1000;">
+      <li><a href="javascript:void(0)" id="dropdown-delete-option">Delete</a></li>
+    </ul>
+  </div>
+
+  <script>
+    // Simulates a real dropdown menu, including the common "click outside
+    // to close" pattern used by many real component libraries: a
+    // transparent full-page overlay that appears alongside the menu to
+    // detect outside clicks, sitting BEHIND the menu itself (lower z-index)
+    // but ABOVE everything else on the page.
+    document.getElementById('dropdown-toggle').addEventListener('click', () => {
+      document.getElementById('dropdown-menu').style.display = 'block';
+      document.getElementById('click-outside-catcher').style.display = 'block';
+    });
+    document.getElementById('click-outside-catcher').addEventListener('click', () => {
+      document.getElementById('dropdown-menu').style.display = 'none';
+      document.getElementById('click-outside-catcher').style.display = 'none';
+    });
+    window.__dropdownDeleteClicked = false;
+    document.getElementById('dropdown-delete-option').addEventListener('click', () => {
+      window.__dropdownDeleteClicked = true;
+    });
+  </script>
+
   <script>
     // Simulates a real modal: a full-screen backdrop that sits on top of
     // (and blocks real mouse access to) whatever's behind it, until

@@ -2,7 +2,7 @@
 
 **English** · [中文](./README.zh-CN.md)
 
-**Version 0.16.0** · see [CHANGELOG.md](./CHANGELOG.md) for release history
+**Version 0.16.1** · see [CHANGELOG.md](./CHANGELOG.md) for release history
 
 A dependency-free visualization layer for automated webpage operations.
 
@@ -260,6 +260,15 @@ only a genuinely separate element sitting on top does. It's off by default
 so existing scripts that don't need this keep working exactly as before;
 turn it on for flows where clicking the wrong thing silently would be
 worse than stopping with a clear error.
+
+Dropdown menus (via `chooseOption()`, or two plain `click()` calls) work
+correctly with this on — a menu's own option is the topmost element at its
+own position once the menu is open, which is exactly what the check looks
+for. This includes the common "click outside to close" pattern many
+component libraries use (a transparent full-page overlay that appears
+alongside the menu to detect outside clicks): as long as it sits behind
+the menu itself (lower z-index, which it needs to for the menu to be
+clickable at all), it's never mistaken for something obstructing the menu's own option.
 
 ## Duplicate ids
 
