@@ -36,6 +36,30 @@
     <div class="menu-opt" data-value="pro">Pro</div>
   </div>
 
+  <!-- Simulates a real bug found with date pickers: a popup appended
+       directly to document.body (a common pattern, to avoid CSS
+       clipping/z-index issues — bootstrap-datepicker does exactly this)
+       that removes itself from body again once dismissed. Clicking
+       something UNRELATED afterward must not get merged with this. -->
+  <!-- Simulates a real bug found with date pickers: clicking something
+       INSIDE an already-open popup (like a day in an open calendar) can
+       cause the popup CONTAINER itself — not the clicked item — to be
+       removed from <body>. A later, completely unrelated click must not
+       get merged with the popup-item click just because <body> is
+       technically an "ancestor" of everything on the page. -->
+  <div id="already-open-popup" style="display:none;">
+    <div id="popup-item">Pick this</div>
+  </div>
+  <button id="unrelated-btn-after">Unrelated button</button>
+
+  <!-- Reproduces the essential mechanism behind a real bug found with a
+       real date picker (bootstrap-datepicker): focus a field (starts
+       tracking it), then a SEPARATE click sets that field's value
+       directly (no 'input'/'change' event fired at all — exactly how
+       that library does it) rather than through actual typing. -->
+  <input id="date-field" type="text" />
+  <button id="date-set-btn">Pick a date (sets #date-field with no events)</button>
+
   <div id="drag-source" style="position:absolute; left:20px; top:400px; width:60px; height:30px; background:#378ADD;">Drag</div>
   <div id="drag-target" style="position:absolute; left:300px; top:400px; width:100px; height:60px; border:2px dashed #999;">Drop here</div>
 
@@ -69,6 +93,26 @@
         planTrigger.textContent = opt.textContent;
         planMenu.style.display = 'none';
       });
+    });
+
+    // Simulates the real bug: clicking something INSIDE an already-open
+    // popup (like a day in an open calendar) causes the popup CONTAINER
+    // itself — appended directly to document.body, exactly what
+    // bootstrap-datepicker's calendar does — to be removed from body,
+    // not the clicked item itself.
+    const alreadyOpenPopup = document.getElementById('already-open-popup');
+    document.body.appendChild(alreadyOpenPopup); // move it to be a direct child of body, already open
+    alreadyOpenPopup.style.display = 'block';
+    document.getElementById('popup-item').addEventListener('click', () => {
+      alreadyOpenPopup.remove(); // removes the CONTAINER (not popup-item) from body
+    });
+
+    // Reproduces the essential mechanism of the real date-picker bug: sets
+    // a value directly with NO event fired at all — no 'input', no
+    // 'change' — exactly how bootstrap-datepicker sets the underlying
+    // <input> after a calendar day is clicked.
+    document.getElementById('date-set-btn').addEventListener('click', () => {
+      document.getElementById('date-field').value = '04/15/2022';
     });
 
     const dragSource = document.getElementById('drag-source');

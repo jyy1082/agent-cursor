@@ -3,6 +3,56 @@
 All notable changes to this project are documented in this file, following
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.5]
+
+### Fixed
+- **Recorder: interacting with a date picker (or any similar third-party
+  widget that sets a field's value directly, with no `input`/`change`
+  event at all) could silently lose the value entirely, or — worse —
+  corrupt a completely unrelated later step.** Investigated after a real
+  report ("the date wasn't recorded") and reproduced end-to-end with the
+  actual bootstrap-datepicker library. Two compounding bugs were found:
+  - `_wasRevealedSince` (the "did clicking this reveal something new"
+    check behind `chooseOption` merge detection) matched any DOM mutation
+    whose target was an ancestor of the next click, with no limit on how
+    far up the tree — and `<body>`/`<html>` are technically an ancestor
+    of everything on the page. A date picker's popup, appended directly
+    to `<body>` (a common pattern to avoid CSS clipping issues) and
+    removed from it on close, triggered exactly this: the very next click
+    anywhere on the page, however unrelated, got wrongly merged into a
+    bogus `chooseOption` step with the calendar-day click, silently
+    losing the actual date. Now excludes `<body>`/`<html>` (in whichever
+    document — this also needed to work inside an iframe) from counting
+    as a "revealed" signal.
+  - Even with that fixed, the date's own value still never made it into
+    the recording. `_onClick`'s own flush-before-processing check ran in
+    this recorder's capture-phase listener, which fires *before* the
+    widget's own bubble-phase handler actually sets the field's value —
+    so at the moment of that check, nothing looked different yet, and the
+    typing buffer tracking the field was discarded. Since the widget then
+    sets the value with no event firing at all, there was no other signal
+    left to catch the change by afterward. `_flushTyping` now gives a
+    field one short, one-time deferred re-check before giving up when
+    nothing looks changed yet — the overwhelmingly common case (a real,
+    direct typing session actually ending) finds nothing different a
+    moment later either and costs nothing; a delayed, eventless value-set
+    now gets caught and correctly recorded as a clean `type` step. The
+    click that triggered it (which would otherwise replay against a
+    specific calendar day cell that isn't even in the DOM once the
+    calendar isn't open, breaking replay before it ever reached the
+    correct value) is removed rather than left behind, since the `type`
+    step alone already reproduces the correct final result — the same
+    as if the date had been typed directly.
+- 2 new real-browser regression tests (using a minimal, dependency-free
+  reproduction of each mechanism, after manually verifying the real
+  underlying cause against the actual bootstrap-datepicker library).
+  Also corrected an existing test whose own scenario had — ironically —
+  the same category of mistake found in 1.0.4's test: it exercised a
+  *legitimate* `chooseOption` merge (an element added directly to
+  `<body>` by its own trigger, clicking that same element) rather than
+  the actual bug pattern (an unrelated later click near a `<body>`-level
+  mutation caused by something else entirely).
+
 ## [1.0.4]
 
 ### Added

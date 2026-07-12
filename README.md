@@ -1,6 +1,6 @@
 # page-pilot
 
-**Version 1.0.4** · see [CHANGELOG.md](./CHANGELOG.md) for release history
+**Version 1.0.5** · see [CHANGELOG.md](./CHANGELOG.md) for release history
 
 A dependency-free toolkit for visualized browser automation, in four
 layers that live in this one repository:
@@ -212,6 +212,25 @@ hard, non-configurable rule.
 `gapBefore` field on the following step hints that a pause happened, in
 case something was loading asynchronously) and hover gestures (too hard
 to distinguish from incidental mouse movement reliably).
+
+## Date pickers and similar widgets
+
+If a date field also accepts typing directly (most do — check by trying
+it), just type the date as text instead of clicking through a calendar
+popup: it records as an ordinary `type` step, which is simpler and more
+reliable to replay than reproducing exactly which day cell was clicked in
+whatever month happened to be showing at the time.
+
+If a field's value can only be set by clicking through a picker UI (a
+genuinely `readonly` field, say), this is still handled correctly — even
+though some real widgets (confirmed with bootstrap-datepicker) set the
+field's value directly with no `input`/`change` event at all once a day
+is clicked, which would otherwise leave nothing to observe. The click
+that triggered it doesn't get left behind as its own step either (it
+would target something like a specific calendar day cell that isn't even
+in the DOM at replay time, since the calendar wouldn't be open) — only a
+clean `type` step with the final value remains, the same as if it had
+been typed directly.
 
 ## Selector generation
 

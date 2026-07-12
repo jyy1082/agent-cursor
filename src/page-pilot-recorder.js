@@ -544,7 +544,18 @@ export class PagePilotRecorder {
     for (const { target, time } of this._recentMutations) {
       if (time < sinceTime || time > untilTime) continue;
       if (target === el) return true;
-      if (target.contains?.(el)) return true;
+      // A mutation whose target is <body>/<html> (in whichever document —
+      // this same check needs to work for a mutation inside an iframe
+      // too) is essentially always an "ancestor" of anything on the page,
+      // in every document. Matching on it provides no real signal that a
+      // SPECIFIC dropdown/menu near `el` was revealed — it produces false
+      // positives whenever ANY unrelated DOM change happens elsewhere on
+      // the page around the same time (confirmed with a real date picker:
+      // clicking a day closes its popup, which is appended directly to
+      // <body> and removed from it on close — completely unrelated to
+      // whatever gets clicked next, but wrongly "revealing" it).
+      const tooCoarse = target.nodeType === 1 && (target.tagName === 'BODY' || target.tagName === 'HTML');
+      if (!tooCoarse && target.contains?.(el)) return true;
       if (el.contains?.(target)) return true;
     }
     return false;
@@ -717,24 +728,75 @@ export class PagePilotRecorder {
     this._typingBuffer = null;
     if (!buf) return;
     const currentValue = buf.el.isContentEditable ? buf.el.textContent : buf.el.value;
-    if (currentValue === buf.startValue || currentValue === '') return; // nothing typed, skip
-    const step = { type: 'type', target: this._buildTarget(buf.el, buf.generated), text: currentValue };
+    if (currentValue !== buf.startValue && currentValue !== '') {
+      this._recordTypeValue(buf, currentValue);
+      return;
+    }
+
+    // Nothing looks changed yet — but this can be premature rather than
+    // final. Confirmed with a real-world date picker (bootstrap-datepicker):
+    // clicking a calendar day runs this same click's OTHER handlers
+    // (this recorder's own capture-phase check fires before the plugin's
+    // bubble-phase one) — the plugin then sets the field's value directly
+    // moments later, via a method that fires no 'input'/'change' event at
+    // all, so there is no other signal available to catch it later.
+    // Giving up immediately here would silently and permanently lose
+    // whatever a widget like that is about to set, since nothing would
+    // ever re-establish tracking for it afterward — give it one short,
+    // one-time deferred check instead. If a real, direct typing session
+    // is what's ending here (the overwhelmingly common case), this
+    // retry simply finds nothing changed a moment later either and is a
+    // no-op — it only ever produces a step when something genuinely did
+    // change.
+    setTimeout(() => {
+      if (!this.recording) return;
+      const laterValue = buf.el.isContentEditable ? buf.el.textContent : buf.el.value;
+      if (laterValue === buf.startValue || laterValue === '') return; // truly nothing changed — a real typing session, not a widget
+
+      // The click that's still the last step recorded is, overwhelmingly
+      // likely, what triggered this delayed change (nothing else can run
+      // in between scheduling this and it firing, short of another real
+      // interaction happening in that instant — and confirmed with a real
+      // date picker, that click is the calendar day itself). That click
+      // is worse than useless to keep: it would replay against whatever
+      // widget UI produced this value (a specific calendar day cell, in
+      // the date picker case) which isn't even in the DOM at replay time
+      // unless something first reopens it — an error that would stop the
+      // whole replay before ever reaching the `type` step below, which
+      // reproduces the correct final value entirely on its own and needs
+      // no such click to precede it.
+      const lastStep = this.steps[this.steps.length - 1];
+      if (lastStep && lastStep.type === 'click') this.steps.pop();
+
+      this._recordTypeValue(buf, laterValue);
+    }, 0);
+  }
+
+  /**
+   * Records (or merges into an existing step for the same field — see
+   * _flushTyping for the full rationale) a `type` step for `buf.el`
+   * holding `value`. Shared between the normal flush path and the
+   * deferred retry in _flushIfBlurred.
+   *
+   * Walks backwards past any `pressKey` steps that ALSO targeted this
+   * same field — those are just part of clearing/editing it in place
+   * (Backspace, Delete, Ctrl+A...), not a separate meaningful action —
+   * to find whether the step before all of that editing was already a
+   * `type` step for this same field. If so, nothing genuinely meaningful
+   * happened between that edit and this one (any real, separate action —
+   * a click, editing a different field, anything — would stop this walk
+   * immediately, since it wouldn't match either condition below). That
+   * earlier value is now entirely superseded and never observable by
+   * anything in between — merge into it and drop the intervening
+   * pressKey steps too, since the merged `type` step alone already
+   * reproduces the correct final result on replay, rather than recording
+   * a separate, now-stale step plus a trail of edit keystrokes that
+   * serve no purpose once merged.
+   */
+  _recordTypeValue(buf, value) {
+    const step = { type: 'type', target: this._buildTarget(buf.el, buf.generated), text: value };
     if (buf.generated.fragile) step.fragile = true;
 
-    // Walk backwards past any `pressKey` steps that ALSO targeted this
-    // same field — those are just part of clearing/editing it in place
-    // (Backspace, Delete, Ctrl+A...), not a separate meaningful action —
-    // to find whether the step before all of that editing was already a
-    // `type` step for this same field. If so, nothing genuinely
-    // meaningful happened between that edit and this one (any real,
-    // separate action — a click, editing a different field, anything —
-    // would stop this walk immediately, since it wouldn't match either
-    // condition below). That earlier value is now entirely superseded
-    // and never observable by anything in between — merge into it and
-    // drop the intervening pressKey steps too, since the merged `type`
-    // step alone already reproduces the correct final result on replay,
-    // rather than recording a separate, now-stale step plus a trail of
-    // edit keystrokes that serve no purpose once merged.
     const targetKey = JSON.stringify(step.target);
     let i = this.steps.length - 1;
     while (i >= 0 && this.steps[i].type === 'pressKey' && JSON.stringify(this.steps[i].target) === targetKey) {

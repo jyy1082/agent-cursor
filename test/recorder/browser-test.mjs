@@ -194,6 +194,52 @@ async function main() {
     await page.close();
   }
 
+  console.log('=== REGRESSION: a field\'s value set by a third-party widget (no events fired at all) is still captured, not silently lost ===');
+  {
+    const page = await freshPage();
+    // Found from a real bug with an actual date picker (bootstrap-
+    // datepicker): focusing #date-field starts tracking it, then clicking
+    // #date-set-btn — a completely separate element — sets #date-field's
+    // value directly with no 'input'/'change' event at all (this
+    // recorder's own capture-phase click handler runs before the
+    // button's own bubble-phase one, so at the moment it checks, nothing
+    // has changed yet — and since no event ever fires afterward, there
+    // would otherwise be no other signal to catch the change by).
+    await page.locator('#date-field').click();
+    await page.locator('#date-set-btn').click();
+    await page.waitForTimeout(50); // let the deferred retry settle
+    await page.locator('#stop-btn').click();
+    const steps = await page.evaluate(() => window.__lastSteps);
+    check('the value set with no events is still correctly captured as a type step', steps.some((s) => s.type === 'type' && s.target === '#date-field' && s.text === '04/15/2022'));
+    check(
+      'the triggering click (which would be unreplayable on its own — nothing else makes it set the value again) is not left behind as a separate, broken step',
+      !steps.some((s) => s.type === 'click' && s.target === '#date-set-btn')
+    );
+    await page.close();
+  }
+
+  console.log('=== REGRESSION: a click causing an element to be added/removed directly on <body> does not falsely merge with an unrelated later click ===');
+  {
+    const page = await freshPage();
+    // Found from a real bug with date pickers (bootstrap-datepicker):
+    // clicking a calendar day (an item inside an ALREADY-open popup, not
+    // something that opens anything new itself) closes the popup, which —
+    // like many overlay/popup libraries — is appended directly to <body>
+    // and removed from it again on close. That mutation's target is
+    // <body> itself, which is technically an "ancestor" of literally
+    // everything on the page — this used to cause the NEXT unrelated
+    // click to be wrongly merged into a chooseOption with the popup-item
+    // click, silently losing whatever the actual intended action was.
+    await page.locator('#popup-item').click(); // clicking something already inside an open popup
+    await page.locator('#unrelated-btn-after').click(); // a totally unrelated later click
+    await page.locator('#stop-btn').click();
+    const steps = await page.evaluate(() => window.__lastSteps);
+    check('no bogus chooseOption step was created', !steps.some((s) => s.type === 'chooseOption'));
+    check('the popup-item click is recorded on its own', steps.some((s) => s.type === 'click' && s.target === '#popup-item'));
+    check('the unrelated click afterward is recorded on its own too, not merged away', steps.some((s) => s.type === 'click' && s.target === '#unrelated-btn-after'));
+    await page.close();
+  }
+
   console.log('=== NEW: chooseOption merge is skipped if another step happens in between ===');
   {
     const page = await freshPage();
