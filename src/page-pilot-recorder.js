@@ -720,6 +720,33 @@ export class PagePilotRecorder {
     if (currentValue === buf.startValue || currentValue === '') return; // nothing typed, skip
     const step = { type: 'type', target: this._buildTarget(buf.el, buf.generated), text: currentValue };
     if (buf.generated.fragile) step.fragile = true;
+
+    // Walk backwards past any `pressKey` steps that ALSO targeted this
+    // same field — those are just part of clearing/editing it in place
+    // (Backspace, Delete, Ctrl+A...), not a separate meaningful action —
+    // to find whether the step before all of that editing was already a
+    // `type` step for this same field. If so, nothing genuinely
+    // meaningful happened between that edit and this one (any real,
+    // separate action — a click, editing a different field, anything —
+    // would stop this walk immediately, since it wouldn't match either
+    // condition below). That earlier value is now entirely superseded
+    // and never observable by anything in between — merge into it and
+    // drop the intervening pressKey steps too, since the merged `type`
+    // step alone already reproduces the correct final result on replay,
+    // rather than recording a separate, now-stale step plus a trail of
+    // edit keystrokes that serve no purpose once merged.
+    const targetKey = JSON.stringify(step.target);
+    let i = this.steps.length - 1;
+    while (i >= 0 && this.steps[i].type === 'pressKey' && JSON.stringify(this.steps[i].target) === targetKey) {
+      i--;
+    }
+    const priorStep = this.steps[i];
+    if (priorStep && priorStep.type === 'type' && JSON.stringify(priorStep.target) === targetKey) {
+      this.steps.length = i + 1; // drop the intervening pressKey steps
+      priorStep.text = step.text;
+      if (step.fragile) priorStep.fragile = true;
+      return;
+    }
     this._pushStep(step);
   }
 

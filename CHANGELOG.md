@@ -3,6 +3,36 @@
 All notable changes to this project are documented in this file, following
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.4]
+
+### Added
+- **Recorder: typing into a field, leaving it, and coming back to
+  retype something different now merges into one clean step** when
+  nothing else genuinely happened in between the two edits — fixing a
+  typo by clicking away and back, say. The now-superseded earlier value
+  never shows up as its own step, and any Backspace/Delete/Ctrl+A steps
+  used to clear the field along the way get cleaned up too, since the
+  merged step alone already reproduces the same final result on replay.
+  The moment anything else genuinely happens in between — even an
+  incidental click on some other element — both edits are correctly kept
+  as separate steps, in order, since real actions between them can
+  matter for what replays correctly; this only merges when there is
+  truly nothing to lose. Requested after a report showing two candidates
+  for a "city" field (a corrected typo and the real final value) in
+  page-pilot-skills' review panel — that panel-level fix from 1.0.3
+  still applies as a second line of defense, but this addresses it at
+  the source, in the recording itself.
+- 3 new real-browser tests: the merge case (leave and come back, nothing
+  else happening), confirming the pressKey steps used to clear the field
+  get cleaned up too, and confirming a genuinely intervening action (a
+  real click) correctly prevents merging.
+
+### Changed
+- Updated an existing test whose expectations predated this change (a
+  field typed into, edited mid-session with repeated Backspace presses,
+  and retyped now correctly merges into a single step, where it
+  previously — correctly, at the time — expected two).
+
 ## [1.0.3]
 
 ### Added

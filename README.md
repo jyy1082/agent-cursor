@@ -1,6 +1,6 @@
 # page-pilot
 
-**Version 1.0.3** · see [CHANGELOG.md](./CHANGELOG.md) for release history
+**Version 1.0.4** · see [CHANGELOG.md](./CHANGELOG.md) for release history
 
 A dependency-free toolkit for visualized browser automation, in four
 layers that live in this one repository:
@@ -195,6 +195,15 @@ container scrolling, drag gestures past a distance threshold (skips
 likely text-selection drags), and opening a custom dropdown + picking an
 option (auto-merged into one `chooseOption` step via a `MutationObserver`,
 instead of two separate clicks).
+
+If a field gets typed into, left, and come back to and retyped — fixing a
+typo by leaving and returning, say — with nothing else happening in
+between the two edits, only the final value is recorded, along with
+whatever led up to it (Backspace, Ctrl+A, etc. are cleaned up too, since
+the merged step alone already reproduces the same end result on replay).
+The moment anything else genuinely happens in between — even an
+incidental click elsewhere — both edits are kept as separate steps in
+order, since that timing can matter for what replays correctly.
 
 **Never recorded, on any site, no matter what:** password fields — a
 hard, non-configurable rule.

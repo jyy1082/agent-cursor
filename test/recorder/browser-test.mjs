@@ -417,8 +417,50 @@ async function main() {
     const steps = await page.evaluate(() => window.__lastSteps);
     const typeSteps = steps.filter((s) => s.type === 'type' && s.target === '#name-input');
     check('the real field ends up with "Lily"', finalFieldValue === 'Lily');
-    check('only 2 clean type steps recorded (not one redundant step per Backspace press)', typeSteps.length === 2);
-    check('the final captured value is "Lily", not lost or mismatched', typeSteps[typeSteps.length - 1].text === 'Lily');
+    check('exactly 1 clean type step recorded — the whole edit (including the mid-edit Backspaces) merges into one, since nothing else happened in between', typeSteps.length === 1);
+    check('the captured value is "Lily", not lost or mismatched', typeSteps[0].text === 'Lily');
+    check('the now-redundant pressKey steps for the Backspaces were cleaned up too, not left behind serving no purpose', steps.filter((s) => s.type === 'pressKey' && s.target === '#name-input').length === 0);
+    await page.close();
+  }
+
+  console.log('=== NEW: typing into a field, leaving it, coming back and retyping merges into one clean step when nothing else happened in between ===');
+  {
+    const page = await freshPage();
+    await page.locator('#name-input').click();
+    await page.keyboard.type('融创'); // a mistake
+    await page.locator('#name-input').evaluate((el) => el.blur()); // leave the field — nothing else clicked, nothing else recorded
+    await page.locator('#name-input').click(); // come right back
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Delete');
+    await page.keyboard.type('rock'); // the real, intended value
+    await page.locator('#stop-btn').click();
+    const steps = await page.evaluate(() => window.__lastSteps);
+    const typeSteps = steps.filter((s) => s.type === 'type' && s.target === '#name-input');
+    check(
+      'only the final value shows up — the corrected mistake never appears as its own step',
+      typeSteps.length === 1 && typeSteps[0].text === 'rock'
+    );
+    await page.close();
+  }
+
+  console.log('=== NEW: typing, a genuinely meaningful action in between, then coming back and retyping does NOT merge ===');
+  {
+    const page = await freshPage();
+    await page.locator('#name-input').click();
+    await page.keyboard.type('draft');
+    await page.locator('#submit-btn').click(); // this needs to stay a real click step — it happened while the field held "draft"
+    await page.locator('#name-input').click();
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Delete');
+    await page.keyboard.type('final');
+    await page.locator('#stop-btn').click();
+    const steps = await page.evaluate(() => window.__lastSteps);
+    const typeSteps = steps.filter((s) => s.type === 'type' && s.target === '#name-input');
+    const clickIndex = steps.findIndex((s) => s.type === 'click' && s.target === '#submit-btn');
+    check('both edits are preserved as separate steps — merging here would lose real timing information', typeSteps.length === 2);
+    check('the first edit ("draft") is still there, in order, before the click', typeSteps[0].text === 'draft' && steps.indexOf(typeSteps[0]) < clickIndex);
+    check('the click in between is still recorded — it genuinely happened while the field held "draft"', clickIndex !== -1);
+    check('the second edit ("final") is recorded after the click', typeSteps[1].text === 'final' && steps.indexOf(typeSteps[1]) > clickIndex);
     await page.close();
   }
 
