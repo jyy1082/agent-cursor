@@ -1,6 +1,6 @@
 {
   "name": "page-pilot",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A dependency-free, four-layer toolkit for visualized browser automation: page-pilot (playback with an animated cursor, click ripples, and highlight borders), page-pilot-recorder (turn real clicks/typing into a step array), page-pilot-skills (turn a recording into a reusable, named skill), and a bookmarklet toolkit tying them together with no install required.",
   "type": "module",
   "main": "src/page-pilot.js",

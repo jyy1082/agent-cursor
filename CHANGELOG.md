@@ -3,6 +3,37 @@
 All notable changes to this project are documented in this file, following
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.3]
+
+### Added
+- **Skills: `select` step candidates now show the selected option's actual
+  visible text**, not just its raw `value` — found from a real report
+  where fields like state or gender showed opaque codes ("143", "2") with
+  no meaning to someone reviewing candidates. The real value used at
+  replay time is untouched; only the panel's display changed. Works for
+  both single- and multi-select (joins multiple selected options'  text
+  together); falls back to `null` if no matching option can be found
+  (e.g. the page's options changed since recording), rather than
+  guessing or crashing.
+
+### Fixed
+- **Skills: typing into the same field twice (moved away, came back, and
+  retyped something different) showed up as two separate candidates.**
+  Both were real, genuine edits — not a recorder bug — but only the
+  *last* one actually determines what the field holds once the whole
+  recording replays. Found from a real report where a "city" field
+  showed both a since-corrected typo and the real final value as two
+  separate rows, risking someone reviewing candidates accidentally
+  parameterizing (or renaming) the stale one and leaving the value that
+  actually matters as a fixed, unparameterized part of the flow instead.
+  Now only the last occurrence of a given field becomes a candidate at
+  all — the earlier, superseded one doesn't appear.
+- 4 new real-browser tests covering both changes, including one that
+  reproduces the exact real report (a field typed into twice, correctly
+  showing only the final value as a candidate) and one confirming the
+  panel itself renders the option's text, not just `detectParameters`'
+  return value.
+
 ## [1.0.2]
 
 ### Fixed

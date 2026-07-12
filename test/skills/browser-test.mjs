@@ -124,6 +124,57 @@ async function main() {
     await page.close();
   }
 
+  console.log('=== detectParameters: select steps show the option\'s visible text, not just the raw value ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(() => {
+      const steps = [
+        { type: 'select', target: '#country-select', value: 'jp' },
+        { type: 'select', target: '#multi-select', value: ['a', 'c'] },
+      ];
+      return window.Skills.detectParameters(steps);
+    });
+    check('a single-select shows the selected option\'s text, not the raw code', result[0].displayValue === 'JP' && result[0].value === 'jp');
+    check('a multi-select shows all selected options\' text joined together', result[1].displayValue === 'Apple, Cherry');
+    check('the raw value used at replay time is still preserved untouched', JSON.stringify(result[1].value) === JSON.stringify(['a', 'c']));
+    await page.close();
+  }
+
+  console.log('=== detectParameters: select displayValue is null when nothing sensible can be found ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(() => {
+      const steps = [
+        { type: 'select', target: '#country-select', value: 'does-not-exist' }, // option removed/changed since recording
+        { type: 'type', target: '#last-name', text: 'Smith' }, // not a select at all
+      ];
+      return window.Skills.detectParameters(steps);
+    });
+    check('no matching option found → displayValue is null, not a crash or garbage value', result[0].displayValue === null);
+    check('non-select steps simply have no displayValue field at all', !('displayValue' in result[1]));
+    await page.close();
+  }
+
+  console.log('=== REGRESSION: only the LAST of several steps targeting the same field becomes a candidate ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(() => {
+      // Simulates typing "融创" into a field, moving elsewhere, coming back
+      // and retyping "rock" — two genuinely separate, real edits (not a
+      // recorder bug), but only the SECOND one determines what the field
+      // actually ends up holding once the whole thing replays.
+      const steps = [
+        { type: 'type', target: '#last-name', text: '融创' },
+        { type: 'click', target: '#save-btn' }, // moved elsewhere in between
+        { type: 'type', target: '#last-name', text: 'rock' },
+      ];
+      return window.Skills.detectParameters(steps);
+    });
+    check('only one candidate for the field, not two', result.length === 1);
+    check('it is the LAST (final) value, not the stale earlier one', result[0].value === 'rock' && result[0].stepIndex === 2);
+    await page.close();
+  }
+
   console.log('=== detectParameters: select and check steps ===');
   {
     const page = await freshPage();
@@ -425,6 +476,23 @@ async function main() {
     check('resolves with null when "One-time use" is picked', result.resolved === null);
     check('nothing gets saved', result.listedCount === 0);
     check('the panel removes itself', result.hostRemoved === true);
+    await page.close();
+  }
+
+  console.log('=== showArchivePanel: the panel itself shows the select option\'s readable text, not the raw code ===');
+  {
+    const page = await freshPage();
+    const result = await page.evaluate(async () => {
+      const steps = [{ type: 'select', target: '#country-select', value: 'jp' }];
+      const panelPromise = window.Skills.showArchivePanel(steps, { domain: 'display-value-test.example.com' });
+      await new Promise((r) => setTimeout(r, 100));
+      const shadow = document.getElementById('page-pilot-skills-archive-host').shadowRoot;
+      const shownText = shadow.querySelector('.param-value').textContent.trim();
+      shadow.getElementById('skip-btn').click();
+      await panelPromise;
+      return shownText;
+    });
+    check('the panel shows "JP" (the option\'s text), not "jp" (the raw value)', result === 'JP');
     await page.close();
   }
 

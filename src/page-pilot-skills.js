@@ -194,6 +194,7 @@ export function detectParameters(steps) {
         value: step.text,
         suggestedName: suggestFieldName(el),
         suggestedChecked: step.text.length <= LONG_VALUE_THRESHOLD,
+        _targetKey: JSON.stringify(step.target),
       });
     } else if (step.type === 'select' && step.value !== undefined) {
       const el = resolveElement(step.target);
@@ -201,8 +202,17 @@ export function detectParameters(steps) {
         stepIndex,
         field: 'value',
         value: step.value,
+        // A <select>'s recorded value is whatever's in the option's own
+        // value="..." attribute — often an opaque id/code (a state's
+        // internal id, a numeric gender code) with no meaning to someone
+        // reviewing candidates. Look up the actual visible text of the
+        // selected option(s) so the review panel shows something a
+        // person can recognize, alongside the raw value actually used at
+        // replay time.
+        displayValue: selectDisplayValue(el, step.value),
         suggestedName: suggestFieldName(el),
         suggestedChecked: true,
+        _targetKey: JSON.stringify(step.target),
       });
     } else if (step.type === 'check' && typeof step.checked === 'boolean') {
       const el = resolveElement(step.target);
@@ -212,10 +222,45 @@ export function detectParameters(steps) {
         value: step.checked,
         suggestedName: suggestFieldName(el),
         suggestedChecked: false, // usually a fixed part of the flow, not something worth re-parameterizing by default
+        _targetKey: JSON.stringify(step.target),
       });
     }
   });
-  return candidates;
+
+  // If several steps end up targeting the exact same field — typed
+  // something, moved to another field, came back and typed something
+  // else, two genuinely separate edits, not a bug — only the LAST one
+  // determines what the field actually ends up holding once the whole
+  // recording replays. Showing both as separate candidates risks someone
+  // reviewing them checking/renaming the stale earlier one and leaving
+  // the one that actually matters as a fixed value, silently. Keep only
+  // the last occurrence per (field, target) pair.
+  const lastIndexForKey = new Map();
+  candidates.forEach((c, i) => lastIndexForKey.set(`${c.field}::${c._targetKey}`, i));
+  return candidates
+    .filter((c, i) => lastIndexForKey.get(`${c.field}::${c._targetKey}`) === i)
+    .map(({ _targetKey, ...rest }) => rest);
+}
+
+/**
+ * The human-readable text of whichever <option>(s) match a recorded
+ * select value — value can be a single string (single-select) or an
+ * array of strings (multi-select, matching what page-pilot-recorder
+ * records for one). Returns null if the element isn't a real <select> or
+ * no matching option is found (e.g. the options changed since recording).
+ */
+function selectDisplayValue(el, value) {
+  if (!el || el.tagName !== 'SELECT' || !el.options) return null;
+  const options = Array.from(el.options);
+  const findText = (v) => {
+    const match = options.find((o) => o.value === v);
+    return match ? match.textContent.trim() : null;
+  };
+  if (Array.isArray(value)) {
+    const texts = value.map(findText).filter((t) => t !== null);
+    return texts.length ? texts.join(', ') : null;
+  }
+  return findText(value);
 }
 
 /** True if any step's selector had to fall back to a structural path or
@@ -494,7 +539,7 @@ export function showArchivePanel(steps, options = {}) {
                 <div class="param-row" data-candidate-index="${i}">
                   <input type="checkbox" class="param-check" ${c.suggestedChecked ? 'checked' : ''} />
                   <input type="text" class="param-name" value="${(c.suggestedName || `参数${i + 1}`).replace(/"/g, '&quot;')}" />
-                  <span class="param-value" title="${String(c.value).replace(/"/g, '&quot;')}">${String(c.value).slice(0, 24)}</span>
+                  <span class="param-value" title="${String(c.displayValue ?? c.value).replace(/"/g, '&quot;')}">${String(c.displayValue ?? c.value).slice(0, 24)}</span>
                 </div>
               `).join('')}
             ` : ''}

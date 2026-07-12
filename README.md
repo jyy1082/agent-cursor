@@ -1,6 +1,6 @@
 # page-pilot
 
-**Version 1.0.2** · see [CHANGELOG.md](./CHANGELOG.md) for release history
+**Version 1.0.3** · see [CHANGELOG.md](./CHANGELOG.md) for release history
 
 A dependency-free toolkit for visualized browser automation, in four
 layers that live in this one repository:
@@ -264,6 +264,20 @@ Every `type` step's `text`, `select` step's `value`, and `check` step's
 then `name`. `select` values suggest checked by default; `check` states
 and values over 200 characters suggest unchecked (usually a fixed part of
 the flow or free-form text, not something worth re-parameterizing).
+
+A `select` step's raw `value` is often an opaque code (an internal id, a
+numeric gender code) with no meaning to someone reviewing candidates — the
+panel shows the actual visible text of the selected `<option>`(s) instead
+wherever it can find one, while the real recorded value (what's actually
+used at replay time) stays untouched underneath.
+
+If several steps end up targeting the exact same field — typed something,
+moved to another field, came back and typed something else entirely —
+that's two genuinely separate, real edits, not a bug, but only the *last*
+one determines what the field actually holds once the whole recording
+replays. Only that last one becomes a candidate; the earlier, now-stale
+value doesn't show up at all, so there's no risk of accidentally
+parameterizing (or renaming) the one that no longer matters.
 
 ## What's saved, and what deliberately isn't
 
